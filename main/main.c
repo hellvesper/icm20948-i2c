@@ -1,10 +1,11 @@
 #include <driver/i2c.h>
+#include "driver/uart.h"
+#include "driver/gpio.h"
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <stdio.h>
 #include "icm20948_driver.h"
-
 #ifndef APP_CPU_NUM
 #define APP_CPU_NUM PRO_CPU_NUM
 #endif
@@ -14,96 +15,35 @@
 
 #define ACK_EN 1
 #define NACK 0
+#define ICM20948_ADDR (0x68)
+#define ICM_WHO_AM_I_REG (0x00)
 
+#define BUF_SIZE (1024)
+#define ABORT_K (0x03)
+#define RETURN_K (0x0d)
+#define READ_REG 1
+#define WRITE_REG 2
 static const char *TAG = "icm20948-i2c";
 
-void search_devices()
-{
-    esp_err_t res;
-    printf("     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\n");
-    printf("00:         ");
-    for (uint8_t i = 3; i < 0x78; i++)
-    {
-        i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-        i2c_master_start(cmd);
-        i2c_master_write_byte(cmd, (i << 1) | I2C_MASTER_WRITE, ACK_EN /* expect ack */);
-        i2c_master_stop(cmd);
+enum i2c_states {
+    RW_DIR,
+    AWAIT_RW_DIR,
+    REGW,
+    AWAIT_REGW,
+    DATAW,
+    AWAIT_DATAW,
+    PROCESSING_CMD,
+    CH_SLV_ADDR,
+    AWAIT_CH_SLV_ADDR,
+    I2C_SCAN
+};
 
-        res = i2c_master_cmd_begin(I2C_NUM_0, cmd, 10 / portTICK_PERIOD_MS);
-        if (i % 16 == 0)
-            printf("\n%.2x:", i);
-        if (res == 0)
-            printf(" %.2x", i);
-        else
-            printf(" --");
-        i2c_cmd_link_delete(cmd);
-    }
-    printf("\n\n");
-}
-
-esp_err_t write_icm_register(uint8_t slv_addr, uint8_t reg_addr, uint8_t data)
-{
-    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    esp_err_t ret = ESP_OK;
-    // transmit addr
-    i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, (reg_addr << 1) | I2C_MASTER_WRITE, ACK_EN /* expect ack */);
-    // transmit data
-    i2c_master_write_byte(cmd, data, ACK_EN);
-//    i2c_master_write(cmd,)
-    i2c_master_stop(cmd);
-    ret = i2c_master_cmd_begin(I2C_NUM_0, cmd, 10 / portTICK_PERIOD_MS);
-    i2c_cmd_link_delete(cmd);
-
-    return ret;
-}
-
-esp_err_t write_icm_register_burst(uint8_t slv_addr, uint8_t reg_addr, const uint8_t *data, uint8_t data_len)
-{
-    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    esp_err_t ret = ESP_OK;
-    // transmit addr
-    i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, (reg_addr << 1) | I2C_MASTER_WRITE, ACK_EN /* expect ack */);
-    // transmit data
-//    i2c_master_write_byte(cmd, data, I2C_MASTER_ACK);
-    i2c_master_write(cmd, data, data_len, ACK_EN);
-    i2c_master_stop(cmd);
-    ret = i2c_master_cmd_begin(I2C_NUM_0, cmd, 10 / portTICK_PERIOD_MS);
-    i2c_cmd_link_delete(cmd);
-
-    return ret;
-}
-
-esp_err_t read_icm_register(uint8_t slv_addr, uint8_t reg_addr, uint8_t *data) {
-    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    esp_err_t ret = ESP_OK;
-    // transmit addr
-    i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, (reg_addr << 1) | I2C_MASTER_READ, ACK_EN /* expect ack */);
-    // recieve data
-    i2c_master_read_byte(cmd, data, I2C_MASTER_LAST_NACK);
-    i2c_master_stop(cmd);
-    ret = i2c_master_cmd_begin(I2C_NUM_0, cmd, 10 / portTICK_PERIOD_MS);
-    i2c_cmd_link_delete(cmd);
-
-    return ret;
-}
-
-esp_err_t read_icm_register_burst(uint8_t slv_addr, uint8_t reg_addr, uint8_t *data, uint8_t data_len) {
-    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    esp_err_t ret = ESP_OK;
-    // transmit addr
-    i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, (reg_addr << 1) | I2C_MASTER_READ, ACK_EN /* expect ack */);
-    // recieve data
-    i2c_master_read(cmd, data, data_len, I2C_MASTER_LAST_NACK);
-    i2c_master_stop(cmd);
-    ret = i2c_master_cmd_begin(I2C_NUM_0, cmd, 10 / portTICK_PERIOD_MS);
-    i2c_cmd_link_delete(cmd);
-
-    return ret;
-}
+struct i2c_action {
+    uint8_t slv_addr;
+    uint8_t dir;
+    uint8_t reg;
+    uint8_t data;
+};
 
 void task(void *ignore)
 {
@@ -117,16 +57,234 @@ void task(void *ignore)
     i2c_param_config(I2C_NUM_0, &conf);
 
     i2c_driver_install(I2C_NUM_0, I2C_MODE_MASTER, 0, 0, 0);
-
+    uint8_t data_byte = 0;
+    uint8_t data_arr[10];
+    esp_err_t res = ESP_FAIL;
     while (1)
     {
         search_devices();
+//        res = read_icm_register(ICM20948_ADDR, ICM_WHO_AM_I_REG, &data_byte);
+        res = read_icm_register_burst(ICM20948_ADDR, ICM_WHO_AM_I_REG, data_arr, 10);
+        if (res == ESP_OK) {
+            printf("reg: 0x%02X content: 0x%02X\n", 0x00, data_byte);
+            for (int i = 0; i < 10; ++i) {
+                printf("reg: 0x%02X content: 0x%02X\n", ICM_WHO_AM_I_REG + i, data_arr[i]);
+            }
+        }
         vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
+esp_err_t hexStringToUint8(const uint8_t* hexString, uint8_t *data) {
+    long result = strtol((const char *)hexString, NULL, 16);
+
+    if (result < 0 || result > UINT8_MAX) {
+        return ESP_FAIL;
+    }
+
+    *data = (uint8_t)result;
+
+    return ESP_OK;
+}
+
+static void echo_task(void *arg)
+{
+    /* Configure parameters of an UART driver,
+     * communication pins and install the driver */
+    uart_config_t uart_config = {
+            .baud_rate = 115200,
+            .data_bits = UART_DATA_8_BITS,
+            .parity    = UART_PARITY_DISABLE,
+            .stop_bits = UART_STOP_BITS_1,
+            .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+            .source_clk = UART_SCLK_APB,
+    };
+    int intr_alloc_flags = 0;
+
+#if CONFIG_UART_ISR_IN_IRAM
+    intr_alloc_flags = ESP_INTR_FLAG_IRAM;
+#endif
+
+    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_0, BUF_SIZE * 2, 0, 0, NULL, intr_alloc_flags));
+    ESP_ERROR_CHECK(uart_param_config(UART_NUM_0, &uart_config));
+    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_0, GPIO_NUM_43, GPIO_NUM_44, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+
+    // Configure a temporary buffer for the incoming data
+    uint8_t *data = (uint8_t *) malloc(BUF_SIZE);
+    // Init state machine
+    static enum i2c_states currentState = RW_DIR;
+    static struct i2c_action i2c_cmd;
+    // set ICM by default
+    i2c_cmd.slv_addr = ICM20948_ADDR;
+
+    while (1) {
+        int len;
+        uint8_t parsed_value;
+        esp_err_t res = ESP_FAIL;
+
+        switch (currentState) {
+
+            case RW_DIR:
+                ESP_LOGI(TAG, "SLV: 0x%x | Enter direction 1 - Read. 2 - write, 3 - change slave, 4 - scan i2c bus", i2c_cmd.slv_addr);
+                currentState++;
+                break;
+            case AWAIT_RW_DIR:
+                len = uart_read_bytes(UART_NUM_0, data, (BUF_SIZE - 1), 1000 / portTICK_PERIOD_MS);
+                if (len && data[0] == ABORT_K) {
+                    currentState = RW_DIR;
+                    break;
+                }
+                if (len == 1) {
+                    data[len] = '\0';
+                    if (hexStringToUint8(data, &parsed_value) == ESP_OK) {
+                        if (parsed_value == 3) {
+                            currentState = CH_SLV_ADDR;
+                            break;
+                        } else if (parsed_value == 4) {
+                            currentState = I2C_SCAN;
+                            break;
+                        } else if (parsed_value == 1 || parsed_value == 2) {
+                            i2c_cmd.dir = parsed_value;
+                            currentState++;
+                        } else
+                        {
+                            ESP_LOGE(TAG, "Direction should be 1(R) or 2(W) got %x (%x)", parsed_value, data[0]);
+                        }
+                    } else
+                    {
+                        ESP_LOGE(TAG, "Parsing error, raw value %s: parsed value: %x", data, parsed_value);
+                    }
+                }
+                break;
+            case REGW:
+                ESP_LOGI(TAG, "Enter register number between  00 and 7F");
+                currentState++;
+                break;
+            case AWAIT_REGW:
+                // Read data from the UART
+                len = uart_read_bytes(UART_NUM_0, data, (BUF_SIZE - 1), 1000 / portTICK_PERIOD_MS);
+                if (len && data[0] == ABORT_K) {
+                    currentState = RW_DIR;
+                    break;
+                }
+                if (len == 2) {
+                    data[len] = '\0';
+                    if (hexStringToUint8(data, &parsed_value) == ESP_OK) {
+                        if (parsed_value <= 0x7F) {
+                            i2c_cmd.reg = parsed_value;
+                            if (i2c_cmd.dir == 2) {
+                                // write to register
+                                currentState++;
+                            } else {
+                                // read from register, data isn't needed
+                                currentState = PROCESSING_CMD;
+                            }
+                        }
+                        else {
+                            ESP_LOGE(TAG, "Register num should be lower or equal 0x7F got %x", parsed_value);
+                        }
+                    } else
+                    {
+                        ESP_LOGE(TAG, "Parsing error, raw value %s: parsed value: %x", data, parsed_value);
+                    }
+                }
+                break;
+            case DATAW:
+                ESP_LOGI(TAG, "Enter 1 byte DATA value 00 - FF");
+                currentState++;
+                break;
+            case AWAIT_DATAW:
+                len = uart_read_bytes(UART_NUM_0, data, (BUF_SIZE - 1), 1000 / portTICK_PERIOD_MS);
+                if (len && data[0] == ABORT_K) {
+                    currentState = RW_DIR;
+                    break;
+                }
+                if (len == 2) {
+                    data[len] = '\0';
+                    if (hexStringToUint8(data, &parsed_value) == ESP_OK) {
+                        if (parsed_value <= 0xFF) {
+                            i2c_cmd.data = parsed_value;
+                            currentState++;
+                        }
+                        else {
+                            ESP_LOGE(TAG, "Data should be 1 byte long in 00 - FF got %x", parsed_value);
+                        }
+                    } else
+                    {
+                        ESP_LOGE(TAG, "Parsing error, raw value %s: parsed value: %x", data, parsed_value);
+                    }
+                }
+                break;
+            case PROCESSING_CMD:
+                if (i2c_cmd.dir == READ_REG) {
+                    res = read_icm_register(i2c_cmd.slv_addr, i2c_cmd.reg, &i2c_cmd.data);
+                    if (res == ESP_OK) {
+                        printf("reg: 0x%02X content: 0x%02X\n", i2c_cmd.reg, i2c_cmd.data);
+                        currentState = RW_DIR;
+                    } else {
+                        ESP_LOGE(TAG, "Can't read register, something goes wrong");
+                        currentState = RW_DIR;
+                    }
+                } else if (i2c_cmd.dir == WRITE_REG) {
+                    res = write_icm_register(i2c_cmd.slv_addr, i2c_cmd.reg, &i2c_cmd.data);
+                    if (res == ESP_OK) {
+                        printf("reg: 0x%02X written with content: 0x%02X\n", i2c_cmd.reg, i2c_cmd.data);
+                        currentState = RW_DIR;
+                    } else {
+                        ESP_LOGE(TAG, "Can't write register, something goes wrong %d", res);
+                        currentState = RW_DIR;
+                    }
+                }
+                break;
+            case CH_SLV_ADDR:
+                ESP_LOGI(TAG, "Enter new slave address 00 - 7F");
+                currentState++;
+                break;
+            case AWAIT_CH_SLV_ADDR:
+                // Read data from the UART
+                len = uart_read_bytes(UART_NUM_0, data, (BUF_SIZE - 1), 1000 / portTICK_PERIOD_MS);
+                if (len && data[0] == ABORT_K) {
+                    currentState = RW_DIR;
+                    break;
+                }
+                if (len == 2) {
+                    data[len] = '\0';
+                    if (hexStringToUint8(data, &parsed_value) == ESP_OK) {
+                        if (parsed_value <= 0x7F) {
+                            i2c_cmd.slv_addr = parsed_value;
+                            // reset state machine
+                            currentState = RW_DIR;
+                        }
+                        else {
+                            ESP_LOGE(TAG, "Slave ADDR num should be lower or equal 0x7F got %x", parsed_value);
+                        }
+                    } else
+                    {
+                        ESP_LOGE(TAG, "Parsing error, raw value %s: parsed value: %x", data, parsed_value);
+                    }
+                }
+                break;
+            case I2C_SCAN:
+                search_devices();
+                currentState = RW_DIR;
+                break;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 
 void app_main()
 {
+    if (init_i2c() != ESP_OK) {
+        ESP_LOGE(TAG, "Can't init i2c bus");
+        while (1); // hang esp
+    }
     // Start task
-    xTaskCreatePinnedToCore(task, TAG, configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
+//    xTaskCreatePinnedToCore(task, TAG, configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, PRO_CPU_NUM);
+    xTaskCreatePinnedToCore(echo_task, "uart_echo_task", 2048, NULL, 10, NULL, PRO_CPU_NUM);
+//    xTaskCreate(echo_task, "uart_echo_task", 2048, NULL, 10, NULL);
+    /*
+     * TODO: add additional states to state machine for i2c slave address change to the end of states enum and switch cases
+     */
 }

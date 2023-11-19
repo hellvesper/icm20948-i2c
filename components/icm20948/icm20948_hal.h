@@ -1,0 +1,8 @@
+//
+// Created by Vitaliy on 19.11.2023.
+//
+
+#ifndef ICM20948_I2C_ICM20948_HAL_H
+#define ICM20948_I2C_ICM20948_HAL_H
+
+#endif //ICM20948_I2C_ICM20948_HAL_H
