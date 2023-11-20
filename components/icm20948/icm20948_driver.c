@@ -67,7 +67,7 @@ esp_err_t write_icm_register(uint8_t slv_addr, uint8_t reg_addr, const uint8_t *
     return ret;
 }
 
-esp_err_t write_icm_register_burst(uint8_t slv_addr, uint8_t reg_addr, const uint8_t *data, uint8_t data_len)
+esp_err_t write_icm_register_burst(uint8_t slv_addr, uint8_t reg_addr, const uint8_t *data, uint32_t data_len)
 {
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
     esp_err_t ret = ESP_OK;
@@ -108,7 +108,7 @@ esp_err_t read_icm_register(uint8_t slv_addr, uint8_t reg_addr, uint8_t *data) {
     return ret;
 }
 
-esp_err_t read_icm_register_burst(uint8_t slv_addr, uint8_t reg_addr, uint8_t *data, uint8_t data_len) {
+esp_err_t read_icm_register_burst(uint8_t slv_addr, uint8_t reg_addr, uint8_t *data, uint32_t data_len) {
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
     esp_err_t ret = ESP_OK;
     // transmit addr

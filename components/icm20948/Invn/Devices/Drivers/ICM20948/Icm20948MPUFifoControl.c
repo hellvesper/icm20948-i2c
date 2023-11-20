@@ -150,7 +150,7 @@ static int dmp_reset_fifo(struct inv_icm20948 * s)
 **/
 static int dmp_read_fifo(struct inv_icm20948 * s, unsigned char *data, uint_fast16_t len)
 {
-	int result;
+	int result = 0;
     uint_fast16_t bytesRead = 0;
 
     while (bytesRead<len) 

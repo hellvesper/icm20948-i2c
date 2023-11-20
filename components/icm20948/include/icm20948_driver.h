@@ -20,11 +20,11 @@ esp_err_t write_icm_register(uint8_t slv_addr, uint8_t reg_addr, const uint8_t *
  * Read data from register in burst mode
  * ICM will autoincrement reg address, only first address should be provided
  */
-esp_err_t write_icm_register_burst(uint8_t slv_addr, uint8_t reg_addr, const uint8_t *data, uint8_t data_len);
+esp_err_t write_icm_register_burst(uint8_t slv_addr, uint8_t reg_addr, const uint8_t *data, uint32_t data_len);
 
 esp_err_t read_icm_register(uint8_t slv_addr, uint8_t reg_addr, uint8_t *data);
 
-esp_err_t read_icm_register_burst(uint8_t slv_addr, uint8_t reg_addr, uint8_t *data, uint8_t data_len);
+esp_err_t read_icm_register_burst(uint8_t slv_addr, uint8_t reg_addr, uint8_t *data, uint32_t data_len);
 
 void search_devices();
 

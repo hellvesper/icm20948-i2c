@@ -20,7 +20,6 @@
 * OF THE SOFTWARE.
 * ________________________________________________________________________________________________________
 */
-#include <asf.h>
 
 /* InvenSense drivers and utils */
 #include "Invn/Devices/Drivers/Icm20948/Icm20948.h"
@@ -39,15 +38,17 @@
 
 /* Atmel system */
 #include "system.h"
+
+/* Espressif system */
+#include <driver/i2c.h>
+#include <esp_log.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <stdio.h>
 /* TDK Sensor */
 #include "sensor.h"
 
-#include "ASF/sam/drivers/pio/pio.h"
-#include "ASF/sam/drivers/pio/pio_handler.h"
-#include "ASF/sam/drivers/twi/twi.h"
-#include "ASF/sam/drivers/tc/tc.h"
 
-#include "main.h"
 
 static const uint8_t dmp3_image[] = {
 #include "icm20948_img.dmp3a.h"
@@ -120,11 +121,19 @@ static uint8_t icm20948_get_grv_accuracy(void);
 * Sleep implementation for ICM20948
 */
 void inv_icm20948_sleep(int ms) {
-	delay_ms(ms);
+//	delay_ms(ms);
+//    esp_rom_delay_us(ms*1000);
+    vTaskDelay(ms / portTICK_PERIOD_MS); // delay 1000ms in FreeRTOS
 }
 
 void inv_icm20948_sleep_us(int us){
-	delay_us(us);
+    if (us > 1000) {
+        // use FreeRTOS delay on > 1 ms dalays as it non-blocking
+        vTaskDelay(us / 1000 / portTICK_PERIOD_MS);
+    } else {
+        ets_delay_us(us);
+    }
+//	delay_us(us);
 }
 
 int load_dmp3(void){
@@ -222,6 +231,7 @@ int icm20948_sensor_setup(void){
 void check_rc(int rc, const char * msg_context){
 	if(rc < 0) {
 		INV_MSG(INV_MSG_LEVEL_ERROR, "%s: error %d (%s)", msg_context, rc, inv_error_str(rc));
+        printf("%s: error %d (%s)", msg_context, rc, inv_error_str(rc));
 		while(1);
 	}
 }
@@ -563,8 +573,6 @@ int handle_command(enum DynProtocolEid eid, const DynProtocolEdata_t * edata, Dy
 			rc = inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(i_sensor), 0);
 		}
 
-		/* Clear pio interrupt */
-		pio_clear(PIN_EXT_INTERRUPT_PIO, PIN_EXT_INTERRUPT_MASK);
 
 		/* Re-init the device */
 		rc += icm20948_sensor_setup();
@@ -589,8 +597,6 @@ int handle_command(enum DynProtocolEid eid, const DynProtocolEdata_t * edata, Dy
 			rc = inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(i_sensor), 0);
 		}
 
-		/* Clear pio interrupt */
-		pio_clear(PIN_EXT_INTERRUPT_PIO, PIN_EXT_INTERRUPT_MASK);
 		/* Soft reset */
 		rc += inv_icm20948_soft_reset(&icm_device);
 
@@ -683,9 +689,6 @@ int handle_command(enum DynProtocolEid eid, const DynProtocolEdata_t * edata, Dy
 		while(i_sensor-- > 0) {
 			rc = inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(i_sensor), 0);
 		}
-
-		/* Clear pio interrupt */
-		pio_clear(PIN_EXT_INTERRUPT_PIO, PIN_EXT_INTERRUPT_MASK);
 
 		/* Soft reset */
 		rc += inv_icm20948_soft_reset(&icm_device);

@@ -1,8 +1,8 @@
 //----------------------------------------------------------------------------- 
 /*
-    Copyright © 2014-2015 InvenSense Inc. Portions Copyright © 2014-2015 Movea. All rights reserved.
+    Copyright ï¿½ 2014-2015 InvenSense Inc. Portions Copyright ï¿½ 2014-2015 Movea. All rights reserved.
 
-    This software, related documentation and any modifications thereto (collectively “Software”) is subject
+    This software, related documentation and any modifications thereto (collectively ï¿½Softwareï¿½) is subject
     to InvenSense and its licensors' intellectual property rights under U.S. and international copyright
     and other intellectual property rights laws.
 

@@ -284,7 +284,4 @@ void app_main()
 //    xTaskCreatePinnedToCore(task, TAG, configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, PRO_CPU_NUM);
     xTaskCreatePinnedToCore(echo_task, "uart_echo_task", 2048, NULL, 10, NULL, PRO_CPU_NUM);
 //    xTaskCreate(echo_task, "uart_echo_task", 2048, NULL, 10, NULL);
-    /*
-     * TODO: add additional states to state machine for i2c slave address change to the end of states enum and switch cases
-     */
 }
