@@ -37,8 +37,7 @@
 #include "Invn/EmbUtils/ErrorHelper.h"
 #include "Invn/EmbUtils/DataConverter.h"
 #include "Invn/EmbUtils/RingBuffer.h"
-#include "Invn/DynamicProtocol/DynProtocol.h"
-#include "Invn/DynamicProtocol/DynProtocolTransportUart.h"
+
 
 
 #include "system.h"

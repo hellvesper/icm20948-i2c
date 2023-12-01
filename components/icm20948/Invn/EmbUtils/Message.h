@@ -47,6 +47,10 @@ extern "C" {
 #endif
 
 #include <stdarg.h>
+#include <esp_log.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <stdio.h>
 
 /** @brief For eMD target, disable log by default
  *	If  compile switch is set for a compilation unit
@@ -91,12 +95,15 @@ extern "C" {
  *	@warning This macro may expand as a function call
  */
 #define INV_MSG_LEVEL                 _INV_MSG_LEVEL
-
+esp_log_level_t log_level_invn_to_esp(int level);
 #if defined(INV_MSG_DISABLE)
-	#define _INV_MSG(level, ...)           (void)0
-	#define _INV_MSG_SETUP(level, printer) (void)0
+    #define _INV_MSG(level, ...)           ESP_LOG_LEVEL(log_level_invn_to_esp(level), "*", __VA_ARGS__)
+//	#define _INV_MSG(level, ...)           (void)0
+    #define _INV_MSG_SETUP(level, printer)  esp_log_level_set("*", log_level_invn_to_esp(level))
+//	#define _INV_MSG_SETUP(level, printer) (void)0
 	#define _INV_MSG_SETUP_LEVEL(level)    (void)0
-	#define _INV_MSG_LEVEL                 INV_MSG_LEVEL_OFF
+//	#define _INV_MSG_LEVEL                 INV_MSG_LEVEL_OFF
+    #define _INV_MSG_LEVEL                 esp_log_level_get("*")
 #else
 	#define _INV_MSG(level, ...)           inv_msg(level, __VA_ARGS__)
  	#define _INV_MSG_SETUP(level, printer) inv_msg_setup(level, printer)
@@ -116,6 +123,18 @@ enum inv_msg_level {
 	INV_MSG_LEVEL_DEBUG,
 	INV_MSG_LEVEL_MAX
 };
+
+//esp_log_level_t log_level_invn_to_esp(int level) {
+//    switch (level) {
+//        case INV_MSG_LEVEL_OFF: return ESP_LOG_NONE;
+//        case INV_MSG_LEVEL_ERROR: return ESP_LOG_ERROR;
+//        case INV_MSG_LEVEL_WARNING: return ESP_LOG_WARN;
+//        case INV_MSG_LEVEL_INFO:    return ESP_LOG_INFO;
+//        case INV_MSG_LEVEL_VERBOSE: return ESP_LOG_DEBUG;
+//        case INV_MSG_LEVEL_DEBUG:   return ESP_LOG_VERBOSE;
+//        default: return ESP_LOG_NONE;
+//    }
+//}
 
 
 /** @brief Prototype for print routine function

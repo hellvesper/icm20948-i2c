@@ -1,7 +1,7 @@
 /*
 * ________________________________________________________________________________________________________
-* Copyright © 2014-2015 InvenSense Inc. Portions Copyright © 2014-2015 Movea. All rights reserved.
-* This software, related documentation and any modifications thereto (collectively ìSoftwareî) is subject
+* Copyright ¬© 2014-2015 InvenSense Inc. Portions Copyright ¬© 2014-2015 Movea. All rights reserved.
+* This software, related documentation and any modifications thereto (collectively ‚ÄúSoftware‚Äù) is subject
 * to InvenSense and its licensors' intellectual property rights under U.S. and international copyright and
 * other intellectual property rights laws.
 * InvenSense and its licensors retain all intellectual property and proprietary rights in and to the Software
@@ -398,6 +398,7 @@ short inv_icm20948_get_accel_divider(struct inv_icm20948 * s)
  You can obtain the real odr in Milliseconds, Micro Seconds or Ticks.
  Use the enum values: ODR_IN_Ms, ODR_IN_Us or ODR_IN_Ticks,
  when calling inv_icm20948_get_odr_in_units().
+ ODR - Output Data Rate (225hz max?)
 */
 uint32_t inv_icm20948_get_odr_in_units(struct inv_icm20948 * s, unsigned short odrInDivider, unsigned char odr_units )
 {

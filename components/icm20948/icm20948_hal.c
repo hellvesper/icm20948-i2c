@@ -13,8 +13,8 @@
 #include "Invn/EmbUtils/ErrorHelper.h"
 #include "Invn/EmbUtils/DataConverter.h"
 #include "Invn/EmbUtils/RingBuffer.h"
-#include "Invn/DynamicProtocol/DynProtocol.h"
-#include "Invn/DynamicProtocol/DynProtocolTransportUart.h"
+//#include "Invn/DynamicProtocol/DynProtocol.h"
+//#include "Invn/DynamicProtocol/DynProtocolTransportUart.h"
 
 #include "system.h"
 #include "sensor.h"
@@ -22,13 +22,13 @@
 
 #define SCHEDULER_PERIOD 1000	/* scheduler period in us */
 
+static const char *TAG = "ICM_HAL";
 
 void icm20948_hal_init(void )
 {
     int rc = 0;
     /* Initialize External Sensor Interrupt */
     interface_initialize();
-
 
     /*
     * Initialize icm20948 serif structure
@@ -56,8 +56,35 @@ void icm20948_hal_init(void )
 
     /*
     * Now that Icm20948 device was initialized, we can proceed with DMP image loading
-    * This step is mandatory as DMP image are not store in non volatile memory
+    * This step is mandatory as DMP image are not store in non-volatile memory
     */
     rc += load_dmp3();
     check_rc(rc, "Error sensor_setup/DMP loading.");
+
+    ESP_LOGI(TAG, "Command START SENSOR");
+    handle_command(DYN_PROTOCOL_EID_START_SENSOR);
+    ESP_LOGI(TAG, "Command START DONE");
 }
+
+void icm20948_hal_poll(void )
+{
+    inv_icm20948_poll_sensor(&icm_device, (void *)0, build_sensor_event_data);
+}
+
+void icm20948_hal_print() {
+    ESP_LOGI(TAG, "ICM LP Mode: %u", icm_device.base_state.chip_lp_ln_mode);
+}
+
+///** @brief Hook for low-level system sleep() function to be implemented by upper layer
+// *  @param[in] ms number of millisecond the calling thread should sleep
+// */
+//void inv_icm20948_sleep_us(int us) {
+//
+//}
+//
+///** @brief Hook for low-level system time() function to be implemented by upper layer
+// *  @return monotonic timestamp in us
+// */
+//uint64_t inv_icm20948_get_time_us(void) {
+//
+//}

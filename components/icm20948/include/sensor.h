@@ -30,22 +30,60 @@
 #define INV20948_ABS(x) (((x) < 0) ? -(x) : (x))
 #endif
 
+/** @brief Event identifier definition
+ */
+/* Commented label are currently not implemented */
+/* Ported from DynProtocol.h for handle_command() */
+enum DynProtocolEid {
+    /* Protocol */
+    DYN_PROTOCOL_EID_PROTOCOLVERSION = 0x00,
+
+    /* IDD methods */
+    DYN_PROTOCOL_EID_WHO_AM_I           = 0x10,
+    DYN_PROTOCOL_EID_RESET              = 0x11,
+    DYN_PROTOCOL_EID_SETUP              = 0x12,
+    DYN_PROTOCOL_EID_CLEANUP            = 0x13,
+    // DYN_PROTOCOL_EID_LOAD               = 0x14,
+    DYN_PROTOCOL_EID_SELF_TEST          = 0x15,
+    DYN_PROTOCOL_EID_GET_FW_INFO        = 0x16,
+    DYN_PROTOCOL_EID_PING_SENSOR        = 0x17,
+    // DYN_PROTOCOL_EID_SET_RUNNING_STATE  = 0x18,
+    DYN_PROTOCOL_EID_START_SENSOR       = 0x19,
+    DYN_PROTOCOL_EID_STOP_SENSOR        = 0x1A,
+    DYN_PROTOCOL_EID_SET_SENSOR_PERIOD  = 0x1B,
+    DYN_PROTOCOL_EID_SET_SENSOR_TIMEOUT = 0x1C,
+    DYN_PROTOCOL_EID_FLUSH_SENSOR       = 0x1D,
+    DYN_PROTOCOL_EID_SET_SENSOR_BIAS    = 0x1E,
+    DYN_PROTOCOL_EID_GET_SENSOR_BIAS    = 0x1F,
+    DYN_PROTOCOL_EID_SET_SENSOR_MMATRIX = 0x20,
+    DYN_PROTOCOL_EID_GET_SENSOR_DATA    = 0x21,
+    DYN_PROTOCOL_EID_GET_SW_REG         = 0x22,
+    DYN_PROTOCOL_EID_SET_SENSOR_CFG     = 0x23,
+    DYN_PROTOCOL_EID_GET_SENSOR_CFG     = 0x24,
+    DYN_PROTOCOL_EID_WRITE_MEMS_REG     = 0x25,
+    DYN_PROTOCOL_EID_READ_MEMS_REG      = 0x26,
+    DYN_PROTOCOL_EID_TRANSFER_BUFFER    = 0x27,
+
+    /* Events */
+    DYN_PROTOCOL_EID_NEW_SENSOR_DATA    = 0x30,
+};
+
+
 /* Forward declaration */
 int icm20948_sensor_setup(void);
-void iddwrapper_protocol_event_cb(enum DynProtocolEtype etype, enum DynProtocolEid eid, const DynProtocolEdata_t * edata, void * cookie);
-void iddwrapper_transport_event_cb(enum DynProTransportEvent e, union DynProTransportEventData data, void * cookie);
+//void iddwrapper_protocol_event_cb(enum DynProtocolEtype etype, enum DynProtocolEid eid, const DynProtocolEdata_t * edata, void * cookie);
+//void iddwrapper_transport_event_cb(enum DynProTransportEvent e, union DynProTransportEventData data, void * cookie);
 void sensor_event(const inv_sensor_event_t * event, void * arg);
-int handle_command(enum DynProtocolEid eid, const DynProtocolEdata_t * edata, DynProtocolEdata_t * respdata);
+int handle_command(enum DynProtocolEid eid);
 int icm20948_run_selftest(void);
 void inv_icm20948_get_st_bias(struct inv_icm20948 * s, int *gyro_bias, int *accel_bias, int * st_bias, int * unscaled);
 void InvEMDFrontEnd_busyWaitUsHook(uint32_t us);
 int InvEMDFrontEnd_isHwFlowCtrlSupportedHook(void);
 int InvEMDFrontEnd_putcharHook(int c);
-void build_sensor_event_data(void * context, uint8_t sensortype, uint64_t timestamp, const void * data, const void *arg);
+void build_sensor_event_data(void * context, enum inv_icm20948_sensor sensortype, uint64_t timestamp, const void * data, const void *arg);
 void inv_icm20948_sleep(int ms);
 int load_dmp3(void);
 void check_rc(int rc, const char * msg_context);
 
 extern inv_icm20948_t icm_device;
-extern DynProtocol_t protocol;
-extern DynProTransportUart_t transport;
+

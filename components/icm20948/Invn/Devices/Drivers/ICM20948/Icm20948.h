@@ -211,8 +211,7 @@ extern uint64_t inv_icm20948_get_time_us(void);
 /** @brief Reset and initialize driver states
  *  @param[in] s             handle to driver states structure
  */
-static inline void inv_icm20948_reset_states(struct inv_icm20948 * s,
-		const struct inv_icm20948_serif * serif)
+static inline void inv_icm20948_reset_states(struct inv_icm20948 * s, const struct inv_icm20948_serif * serif)
 {
 	assert(icm20948_instance == 0);
 

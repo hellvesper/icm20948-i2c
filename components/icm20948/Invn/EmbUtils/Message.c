@@ -29,6 +29,18 @@
 static int               msg_level;
 static inv_msg_printer_t msg_printer;
 
+esp_log_level_t log_level_invn_to_esp(int level) {
+    switch (level) {
+        case INV_MSG_LEVEL_OFF: return ESP_LOG_NONE;
+        case INV_MSG_LEVEL_ERROR: return ESP_LOG_ERROR;
+        case INV_MSG_LEVEL_WARNING: return ESP_LOG_WARN;
+        case INV_MSG_LEVEL_INFO:    return ESP_LOG_INFO;
+        case INV_MSG_LEVEL_VERBOSE: return ESP_LOG_DEBUG;
+        case INV_MSG_LEVEL_DEBUG:   return ESP_LOG_VERBOSE;
+        default: return ESP_LOG_NONE;
+    }
+}
+
 void inv_msg_printer_default(int level, const char * str, va_list ap)
 {
 	(void)level, (void)str, (void)ap;

@@ -182,6 +182,19 @@ int inv_icm20948_init_scale(struct inv_icm20948 * s)
 	return 0;
 }
 
+/*
+ * Accelerometer and Gyroscope MEMS FSR can be reconfigured with the following set of values :
+    - When applied to raw accelerometer or accelerometer sensor :
+        o 2g
+        o 4g
+        o 8g
+        o 16g
+    - When applied to raw gyroscope or gyroscope or uncalibrated gyroscope sensor :
+        o 250dps
+        o 500dps
+        o 1000dps
+        o 2000dps
+ */
 int inv_icm20948_set_fsr(struct inv_icm20948 * s, enum inv_icm20948_sensor sensor, const void * fsr)
 {
 	int result = 0;
@@ -348,6 +361,9 @@ int inv_icm20948_get_bias(struct inv_icm20948 * s, enum inv_icm20948_sensor sens
 	return (rc == 0) ? 3*(int)sizeof(float) : rc;
 }
 
+/*
+ * 1 - high
+ */
 int inv_icm20948_set_lowpower_or_highperformance(struct inv_icm20948 * s, uint8_t lowpower_or_highperformance)
 {
 	s->go_back_lp_when_odr_low = 0;
@@ -499,7 +515,7 @@ static uint8_t inv_icm20948_updateTs(struct inv_icm20948 * s, int * data_left_in
 		}
 		return -1;
 	}
-	// we parse all senosr according to android type
+	// we parse all sensor according to android type
 	for (i = 0; i < GENERAL_SENSORS_MAX; i++) {
 		if (inv_icm20948_is_streamed_sensor(i)) {
 			if (sample_cnt_array[i]) {
@@ -542,6 +558,18 @@ static uint8_t inv_icm20948_updateTs(struct inv_icm20948 * s, int * data_left_in
 int inv_icm20948_poll_sensor(struct inv_icm20948 * s, void * context,
 	void (*handler)(void * context, enum inv_icm20948_sensor sensor, uint64_t timestamp, const void * data, const void *arg))
 {
+    static uint32_t poll_sens_count = 0;
+    poll_sens_count++;
+#define DEBUG_PRINT 1
+#ifdef DEBUG_PRINT
+//    pdMS_TO_TICKS(1000);
+//    esp_timer_get_time();
+    static uint32_t print_time = 0;
+    if (print_time % 1000 == 0) {
+        ESP_LOGI("Setup.c", "polling sensor %u", poll_sens_count);
+    }
+    print_time++;
+#endif
 	short int_read_back=0;
 	unsigned short header=0, header2 = 0;
 	int data_left_in_fifo=0;
@@ -567,9 +595,18 @@ int inv_icm20948_poll_sensor(struct inv_icm20948 * s, void * context,
 	uint64_t lastIrqTimeUs;
 
 	inv_icm20948_identify_interrupt(s, &int_read_back);
-
+#ifdef DEBUG_PRINT
+    if (print_time % 100 == 0) {
+        printf("%s:%d | identify interrupt: %u\n", __PRETTY_FUNCTION__, __LINE__, int_read_back);
+    }
+#endif
 	if (int_read_back & (BIT_MSG_DMP_INT | BIT_MSG_DMP_INT_0)) {
 		lastIrqTimeUs = inv_icm20948_get_time_us();
+#ifdef DEBUG_PRINT
+        if (print_time % 100 == 0) {
+            ESP_LOGI("Setup.c", "lastIrqTimeUs %llu", lastIrqTimeUs);
+        }
+#endif
 		do {
 			unsigned short total_sample_cnt = 0;
 
@@ -914,6 +951,11 @@ int inv_icm20948_poll_sensor(struct inv_icm20948 * s, void * context,
 
 	/* Sometimes, the chip can be put in sleep mode even if there is data in the FIFO. If we poll at this moment, the transport layer will wake-up the chip, but never put it back in sleep. */
 	if (s->mems_put_to_sleep) {
+#ifdef DEBUG_PRINT
+        if (print_time % 100 == 0) {
+            printf("%s:%d | mems_put_to_sleep\n", __PRETTY_FUNCTION__, __LINE__);
+        }
+#endif
 		inv_icm20948_sleep_mems(s);
 	}
 

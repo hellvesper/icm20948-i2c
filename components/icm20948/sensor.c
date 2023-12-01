@@ -33,8 +33,8 @@
 #include "Invn/EmbUtils/ErrorHelper.h"
 #include "Invn/EmbUtils/DataConverter.h"
 #include "Invn/EmbUtils/RingBuffer.h"
-#include "Invn/DynamicProtocol/DynProtocol.h"
-#include "Invn/DynamicProtocol/DynProtocolTransportUart.h"
+//#include "Invn/DynamicProtocol/DynProtocol.h"
+//#include "Invn/DynamicProtocol/DynProtocolTransportUart.h"
 
 /* Atmel system */
 #include "system.h"
@@ -45,6 +45,10 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <stdio.h>
+
+static const char *TAG = "sensor.c";
+#define DEBUG_PRINT 1
+
 /* TDK Sensor */
 #include "sensor.h"
 
@@ -101,17 +105,10 @@ static uint8_t convert_to_generic_ids[INV_ICM20948_SENSOR_MAX] = {
 };
 
 /*
-* Dynamic protocol and transport handles
-*/
-DynProtocol_t protocol;
-DynProTransportUart_t transport;
-
-/*
 * Mask to keep track of enabled sensors
 */
 static uint32_t enabled_sensor_mask = 0;
 
-static void convert_sensor_event_to_dyn_prot_data(const inv_sensor_event_t * event, VSensorDataAny * vsensor_data);
 static enum inv_icm20948_sensor idd_sensortype_conversion(int sensor);
 static void icm20948_apply_mounting_matrix(void);
 static void icm20948_set_fsr(void);
@@ -134,6 +131,13 @@ void inv_icm20948_sleep_us(int us){
         ets_delay_us(us);
     }
 //	delay_us(us);
+}
+
+/** @brief Hook for low-level system time() function to be implemented by upper layer
+ *  @return monotonic timestamp in us
+ */
+uint64_t inv_icm20948_get_time_us(void) {
+    return esp_timer_get_time();
 }
 
 int load_dmp3(void){
@@ -173,6 +177,7 @@ int icm20948_sensor_setup(void){
 			rc = inv_icm20948_get_whoami(&icm_device, &whoami);
 		}
 	}
+    ESP_LOGI(TAG, "ICM20948 WHOAMI value=0x%02x", whoami);
 	INV_MSG(INV_MSG_LEVEL_INFO, "ICM20948 WHOAMI value=0x%02x", whoami);
 
 	/*
@@ -185,6 +190,7 @@ int icm20948_sensor_setup(void){
 	}
 
 	if(i == sizeof(EXPECTED_WHOAMI)/sizeof(EXPECTED_WHOAMI[0])) {
+        ESP_LOGE(TAG, "Bad WHOAMI value. Got 0x%02x.", whoami);
 		INV_MSG(INV_MSG_LEVEL_ERROR, "Bad WHOAMI value. Got 0x%02x.", whoami);
 		return rc;
 	}
@@ -193,9 +199,11 @@ int icm20948_sensor_setup(void){
 	inv_icm20948_init_matrix(&icm_device);
 
 	/* set default power mode */
+    ESP_LOGI(TAG, "Putting Icm20948 in sleep mode...");
 	INV_MSG(INV_MSG_LEVEL_VERBOSE, "Putting Icm20948 in sleep mode...");
 	rc = inv_icm20948_initialize(&icm_device, dmp3_image, sizeof(dmp3_image));
 	if (rc != 0) {
+        ESP_LOGE(TAG, "Initialization failed. Error loading DMP3...");
 		INV_MSG(INV_MSG_LEVEL_ERROR, "Initialization failed. Error loading DMP3...");
 		return rc;
 	}
@@ -203,23 +211,29 @@ int icm20948_sensor_setup(void){
 	/*
 	* Configure and initialize the ICM20948 for normal use
 	*/
+    ESP_LOGI(TAG, "Booting up icm20948...");
 	INV_MSG(INV_MSG_LEVEL_INFO, "Booting up icm20948...");
 
 	/* Initialize auxiliary sensors */
+    ESP_LOGI(TAG, "Register aux compass...");
 	inv_icm20948_register_aux_compass( &icm_device, INV_ICM20948_COMPASS_ID_AK09916, AK0991x_DEFAULT_I2C_ADDR);
-	rc = inv_icm20948_initialize_auxiliary(&icm_device);
+    ESP_LOGI(TAG, "Init auxiliary...");
+    rc = inv_icm20948_initialize_auxiliary(&icm_device);
 	if (rc == -1) {
+        ESP_LOGE(TAG, "Compass not detected...");
 		INV_MSG(INV_MSG_LEVEL_ERROR, "Compass not detected...");
 	}
-
+    ESP_LOGI(TAG, "Apply mounting matrix...");
 	icm20948_apply_mounting_matrix();
-
+    ESP_LOGI(TAG, "Set FSR...");
 	icm20948_set_fsr();
 
 	/* re-initialize base state structure */
+    ESP_LOGI(TAG, "Reinit state structure...");
 	inv_icm20948_init_structure(&icm_device);
 
 	/* we should be good to go ! */
+    ESP_LOGI(TAG, "We're good to go !");
 	INV_MSG(INV_MSG_LEVEL_VERBOSE, "We're good to go !");
 
 	return 0;
@@ -230,103 +244,10 @@ int icm20948_sensor_setup(void){
 */
 void check_rc(int rc, const char * msg_context){
 	if(rc < 0) {
+        ESP_LOGE(TAG, "%s: error %d (%s)", msg_context, rc, inv_error_str(rc));
 		INV_MSG(INV_MSG_LEVEL_ERROR, "%s: error %d (%s)", msg_context, rc, inv_error_str(rc));
-        printf("%s: error %d (%s)", msg_context, rc, inv_error_str(rc));
+//        printf("%s: error %d (%s)", msg_context, rc, inv_error_str(rc));
 		while(1);
-	}
-}
-
-/*
-* IddWrapper protocol handler function
-*
-* Will dispatch command and send response back
-*/
-void iddwrapper_protocol_event_cb(
-	enum DynProtocolEtype etype,
-	enum DynProtocolEid eid,
-	const DynProtocolEdata_t * edata,
-	void * cookie
-	){
-		(void)cookie;
-
-		static DynProtocolEdata_t resp_edata; /* static to take on .bss */
-		static uint8_t respBuffer[256]; /* static to take on .bss */
-		uint16_t respLen;
-
-		switch(etype) {
-		case DYN_PROTOCOL_ETYPE_CMD:
-			resp_edata.d.response.rc = handle_command(eid, edata, &resp_edata);
-
-			/* send back response */
-			if(DynProtocol_encodeResponse(&protocol, eid, &resp_edata,
-				respBuffer, sizeof(respBuffer), &respLen) != 0) {
-					goto error_dma_buffer;
-			}
-
-			DynProTransportUart_tx(&transport, respBuffer, respLen);
-			break;
-
-		default:
-			INV_MSG(INV_MSG_LEVEL_WARNING, "DeviceEmdWrapper: unexpected packet received. Ignored.");
-			break; /* no suppose to happen */
-		}
-		return;
-
-error_dma_buffer:
-		INV_MSG(INV_MSG_LEVEL_WARNING, "iddwrapper_protocol_event_cb: encode error, response dropped");
-
-		return;
-}
-
-/*
-* IddWrapper transport handler function
-*
-* This function will:
-*  - feed the Dynamic protocol layer to analyze for incoming CMD packet
-*  - forward byte coming from transport layer to be send over uart to the host
-*/
-void iddwrapper_transport_event_cb(enum DynProTransportEvent e,
-union DynProTransportEventData data, void * cookie){
-	(void)cookie;
-
-	int rc;
-	int timeout = 5000; /* us */
-
-	switch(e) {
-	case DYN_PRO_TRANSPORT_EVENT_ERROR:
-		INV_MSG(INV_MSG_LEVEL_ERROR, "ERROR event with value %d received from IddWrapper transport", data.error);
-		break;
-
-	case DYN_PRO_TRANSPORT_EVENT_PKT_SIZE:
-		break;
-
-	case DYN_PRO_TRANSPORT_EVENT_PKT_BYTE:
-		/* Feed IddWrapperProtocol to look for packet */
-		rc = DynProtocol_processPktByte(&protocol, data.pkt_byte);
-		if(rc < 0) {
-			INV_MSG(INV_MSG_LEVEL_DEBUG, "DynProtocol_processPktByte(%02x) returned %d", data.pkt_byte, rc);
-		}
-		break;
-
-	case DYN_PRO_TRANSPORT_EVENT_PKT_END:
-		break;
-
-		/* forward buffer from EMD Transport, to the SERIAL */
-	case DYN_PRO_TRANSPORT_EVENT_TX_START:
-		break;
-
-	case DYN_PRO_TRANSPORT_EVENT_TX_BYTE:
-		while ((InvEMDFrontEnd_putcharHook(data.tx_byte) == EOF) && (timeout > 0)) {
-			InvEMDFrontEnd_busyWaitUsHook(10);
-			timeout -= 10;
-		}
-		break;
-
-	case DYN_PRO_TRANSPORT_EVENT_TX_END:
-		break;
-
-	case DYN_PRO_TRANSPORT_EVENT_TX_START_DMA:
-		break;
 	}
 }
 
@@ -338,8 +259,9 @@ static uint8_t icm20948_get_grv_accuracy(void){
 	gyro_accuracy = (uint8_t)inv_icm20948_get_gyro_accuracy();
 	return (min(accel_accuracy, gyro_accuracy));
 }
-
-void build_sensor_event_data(void * context, uint8_t sensortype, uint64_t timestamp, const void * data, const void *arg){
+//void (*handler)(void * context, enum inv_icm20948_sensor sensor, uint64_t timestamp, const void * data, const void *arg);
+void build_sensor_event_data(void * context, enum inv_icm20948_sensor sensortype, uint64_t timestamp, const void * data, const void *arg)
+{
 	float raw_bias_data[6];
 	inv_sensor_event_t event;
 	(void)context;
@@ -348,6 +270,15 @@ void build_sensor_event_data(void * context, uint8_t sensortype, uint64_t timest
 	memset((void *)&event, 0, sizeof(event));
 	event.sensor = sensor_id;
 	event.timestamp = timestamp;
+//    printf("Sensor ID: %u", sensor_id);
+//#define DEBUG_S 1
+#ifdef DEBUG_PRINT
+    static uint32_t print_time = 0;
+    if (print_time % 100 == 0) {
+        ESP_LOGI(TAG, "Sensor ID: %u", sensor_id);
+    }
+    print_time++;
+#endif
 	switch(sensor_id) {
 	case INV_SENSOR_TYPE_UNCAL_GYROSCOPE:
 		memcpy(raw_bias_data, data, sizeof(raw_bias_data));
@@ -418,112 +349,48 @@ void build_sensor_event_data(void * context, uint8_t sensortype, uint64_t timest
 }
 
 void sensor_event(const inv_sensor_event_t * event, void * arg){
-	/* arg will contained the value provided at init time */
+	/* arg will contain the value provided at init time */
 	(void)arg;
 
 	/*
 	* Encode sensor event and sent to host over UART through IddWrapper protocol
 	*/
-	static DynProtocolEdata_t async_edata; /* static to take on .bss */
-	static uint8_t async_buffer[256]; /* static to take on .bss */
-	uint16_t async_bufferLen;
+    /*
+     * event.data.quaternion.accuracy), arg, sizeof(event.data.quaternion.accuracy));
+     * event.data.quaternion.quat, data, sizeof(event.data.quaternion.quat));
+     */
+    static uint32_t event_count = 0;
+    event_count++;
+//	static uint8_t async_buffer[256]; /* static to take on .bss */
+//	uint16_t async_bufferLen;
 
-	async_edata.sensor_id = event->sensor;
-	async_edata.d.async.sensorEvent.status = DYN_PRO_SENSOR_STATUS_DATA_UPDATED;
-	convert_sensor_event_to_dyn_prot_data(event, &async_edata.d.async.sensorEvent.vdata);
+    /*
+     * float        quat[4];          < w,x,y,z quaternion data
+     * float        accuracy;         < heading accuracy in deg
+     * uint8_t      accuracy_flag;    < accuracy flag specific for GRV
+     */
 
-	if(DynProtocol_encodeAsync(&protocol,
-		DYN_PROTOCOL_EID_NEW_SENSOR_DATA, &async_edata,
-		async_buffer, sizeof(async_buffer), &async_bufferLen) != 0) {
-			goto error_dma_buf;
-	}
+#ifdef DEBUG_PRINT
+//    ESP_LOGI(TAG, "Ev Cnt: %u", event_count);
+    printf("%s:%d | Sensor ID: %s\n", __PRETTY_FUNCTION__, __LINE__, inv_sensor_2str(event->sensor));
+//    printf("Accuracy: %f deg | Quaterion W: %f | X: %f | Y: %f | Z: %f | Flag: %u\n",
+//    printf("DATA_Q A:%f W:%f X:%f Y:%f Z:%f F:%u\n",
+//           event->data.quaternion.accuracy,
+//           event->data.quaternion.quat[0],
+//           event->data.quaternion.quat[1],
+//           event->data.quaternion.quat[2],
+//           event->data.quaternion.quat[3],
+//           event->data.quaternion.accuracy_flag);
+    printf("/*%f,%f,%f,%f,%f*/\n",
+           event->data.quaternion.accuracy,
+           event->data.quaternion.quat[0],
+           event->data.quaternion.quat[1],
+           event->data.quaternion.quat[2],
+           event->data.quaternion.quat[3]);
 
-	DynProTransportUart_tx(&transport, async_buffer, async_bufferLen);
-	return;
-
-error_dma_buf:
-	INV_MSG(INV_MSG_LEVEL_WARNING, "sensor_event_cb: encode error, frame dropped");
-
-	return;
+#endif
 }
 
-/*
-* Convert sensor_event to VSensorData because dynamic protocol transports VSensorData
-*/
-static void convert_sensor_event_to_dyn_prot_data(const inv_sensor_event_t * event, VSensorDataAny * vsensor_data){
-	vsensor_data->base.timestamp = event->timestamp;
-
-	switch(event->sensor) {
-		case DYN_PRO_SENSOR_TYPE_RESERVED:
-		break;
-		case DYN_PRO_SENSOR_TYPE_GRAVITY:
-		case DYN_PRO_SENSOR_TYPE_LINEAR_ACCELERATION:
-		case DYN_PRO_SENSOR_TYPE_ACCELEROMETER:
-		inv_dc_float_to_sfix32(&event->data.acc.vect[0], 3, 16, (int32_t *)&vsensor_data->data.u32[0]);
-		vsensor_data->base.meta_data = event->data.acc.accuracy_flag;
-		break;
-		case DYN_PRO_SENSOR_TYPE_GYROSCOPE:
-		inv_dc_float_to_sfix32(&event->data.gyr.vect[0], 3, 16, (int32_t *)&vsensor_data->data.u32[0]);
-		vsensor_data->base.meta_data = event->data.gyr.accuracy_flag;
-		break;
-		case DYN_PRO_SENSOR_TYPE_UNCAL_GYROSCOPE:
-		inv_dc_float_to_sfix32(&event->data.gyr.vect[0], 3, 16, (int32_t *)&vsensor_data->data.u32[0]);
-		inv_dc_float_to_sfix32(&event->data.gyr.bias[0], 3, 16, (int32_t *)&vsensor_data->data.u32[3]);
-		vsensor_data->base.meta_data = event->data.gyr.accuracy_flag;
-		break;
-		case DYN_PRO_SENSOR_TYPE_PRED_QUAT_0:
-		case DYN_PRO_SENSOR_TYPE_PRED_QUAT_1:
-		case DYN_PRO_SENSOR_TYPE_GAME_ROTATION_VECTOR:
-		inv_dc_float_to_sfix32(&event->data.quaternion.quat[0], 4, 30, (int32_t *)&vsensor_data->data.u32[0]);
-		vsensor_data->base.meta_data = event->data.quaternion.accuracy_flag;
-		break;
-		case DYN_PRO_SENSOR_TYPE_MAGNETOMETER:
-		inv_dc_float_to_sfix32(&event->data.mag.vect[0], 3, 16, (int32_t *)&vsensor_data->data.u32[0]);
-		vsensor_data->base.meta_data = event->data.mag.accuracy_flag;
-		break;
-		case DYN_PRO_SENSOR_TYPE_UNCAL_MAGNETOMETER:
-		inv_dc_float_to_sfix32(&event->data.mag.vect[0], 3, 16, (int32_t *)&vsensor_data->data.u32[0]);
-		inv_dc_float_to_sfix32(&event->data.mag.bias[0], 3, 16, (int32_t *)&vsensor_data->data.u32[3]);
-		vsensor_data->base.meta_data = event->data.mag.accuracy_flag;
-		break;
-		case DYN_PRO_SENSOR_TYPE_ROTATION_VECTOR:
-		case DYN_PRO_SENSOR_TYPE_GEOMAG_ROTATION_VECTOR:
-		inv_dc_float_to_sfix32(&event->data.quaternion.quat[0], 4, 30, (int32_t *)&vsensor_data->data.u32[0]);
-		inv_dc_float_to_sfix32(&event->data.quaternion.accuracy, 1, 16, (int32_t *)&vsensor_data->data.u32[4]);
-		vsensor_data->base.meta_data = event->data.quaternion.accuracy_flag;
-		break;
-		case DYN_PRO_SENSOR_TYPE_ORIENTATION:
-		inv_dc_float_to_sfix32(&event->data.orientation.x, 1, 16, (int32_t *)&vsensor_data->data.u32[0]);
-		inv_dc_float_to_sfix32(&event->data.orientation.y, 1, 16, (int32_t *)&vsensor_data->data.u32[1]);
-		inv_dc_float_to_sfix32(&event->data.orientation.z, 1, 16, (int32_t *)&vsensor_data->data.u32[2]);
-		vsensor_data->base.meta_data = event->data.orientation.accuracy_flag;
-		break;
-		case DYN_PRO_SENSOR_TYPE_RAW_ACCELEROMETER:
-		case DYN_PRO_SENSOR_TYPE_RAW_GYROSCOPE:
-		vsensor_data->data.u32[0] = event->data.raw3d.vect[0];
-		vsensor_data->data.u32[1] = event->data.raw3d.vect[1];
-		vsensor_data->data.u32[2] = event->data.raw3d.vect[2];
-		break;
-		case DYN_PRO_SENSOR_TYPE_STEP_COUNTER:
-		vsensor_data->data.u32[0] = (uint32_t)event->data.step.count;
-		break;
-		case DYN_PRO_SENSOR_TYPE_BAC:
-		vsensor_data->data.u8[0] = (uint8_t)(int8_t)event->data.bac.event;
-		break;
-		case DYN_PRO_SENSOR_TYPE_WOM:
-		vsensor_data->data.u8[0] = event->data.wom.flags;
-		break;
-		case DYN_PRO_SENSOR_TYPE_B2S:
-		case DYN_PRO_SENSOR_TYPE_SMD:
-		case DYN_PRO_SENSOR_TYPE_STEP_DETECTOR:
-		case DYN_PRO_SENSOR_TYPE_TILT_DETECTOR:
-		case DYN_PRO_SENSOR_TYPE_PICK_UP_GESTURE:
-		vsensor_data->data.u8[0] = event->data.event;
-		break;
-		default:
-		break;
-	}
-}
 
 static enum inv_icm20948_sensor idd_sensortype_conversion(int sensor){
 	switch(sensor) {
@@ -551,16 +418,174 @@ static enum inv_icm20948_sensor idd_sensortype_conversion(int sensor){
 	}
 }
 
-int handle_command(enum DynProtocolEid eid, const DynProtocolEdata_t * edata, DynProtocolEdata_t * respdata){
+//int handle_command(enum DynProtocolEid eid, const DynProtocolEdata_t * edata, DynProtocolEdata_t * respdata){
+//	int rc = 0;
+//	uint8_t whoami;
+//	const int sensor = edata->sensor_id;
+//
+//	switch(eid) {
+//
+//	case DYN_PROTOCOL_EID_GET_SW_REG:
+//		if(edata->d.command.regAddr == DYN_PROTOCOL_EREG_HANDSHAKE_SUPPORT)
+//			return InvEMDFrontEnd_isHwFlowCtrlSupportedHook();
+//		return 0;
+//
+//	case DYN_PROTOCOL_EID_SETUP:
+//	{
+//		int i_sensor = INV_SENSOR_TYPE_MAX;
+//		INV_MSG(INV_MSG_LEVEL_DEBUG, "DeviceEmdWrapper: received command setup");
+//
+//		/* Disable all sensors */
+//		while(i_sensor-- > 0) {
+//			rc = inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(i_sensor), 0);
+//		}
+//
+//
+//		/* Re-init the device */
+//		rc += icm20948_sensor_setup();
+//		rc += load_dmp3();
+//
+//		/* .. no sensors are reporting on setup */
+//		enabled_sensor_mask = 0;
+//		return rc;
+//	}
+//
+//	case DYN_PROTOCOL_EID_WHO_AM_I:
+//		rc = inv_icm20948_get_whoami(&icm_device, &whoami);
+//		return (rc == 0) ? whoami : rc;
+//
+//	case DYN_PROTOCOL_EID_RESET:
+//	{
+//		int i_sensor = INV_SENSOR_TYPE_MAX;
+//		INV_MSG(INV_MSG_LEVEL_DEBUG, "DeviceEmdWrapper: received command reset");
+//
+//		/* Disable all sensors */
+//		while(i_sensor-- > 0) {
+//			rc = inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(i_sensor), 0);
+//		}
+//
+//		/* Soft reset */
+//		rc += inv_icm20948_soft_reset(&icm_device);
+//
+//		/* --- Setup --- */
+//		/* Re-init the device */
+//		rc += icm20948_sensor_setup();
+//		rc += load_dmp3();
+//
+//		/* All sensors stop reporting on reset */
+//		enabled_sensor_mask = 0;
+//		return rc;
+//	}
+//
+//	case DYN_PROTOCOL_EID_PING_SENSOR:
+//		INV_MSG(INV_MSG_LEVEL_DEBUG, "DeviceEmdWrapper: received command ping(%s)", inv_sensor_2str(sensor));
+//		if((sensor == INV_SENSOR_TYPE_RAW_ACCELEROMETER)
+//			|| (sensor == INV_SENSOR_TYPE_RAW_GYROSCOPE)
+//			|| (sensor == INV_SENSOR_TYPE_ACCELEROMETER)
+//			|| (sensor == INV_SENSOR_TYPE_GYROSCOPE)
+//			|| (sensor == INV_SENSOR_TYPE_UNCAL_GYROSCOPE)
+//			|| (sensor == INV_SENSOR_TYPE_GAME_ROTATION_VECTOR)
+//			|| (sensor == INV_SENSOR_TYPE_GRAVITY)
+//			|| (sensor == INV_SENSOR_TYPE_LINEAR_ACCELERATION)
+//			|| (sensor == INV_SENSOR_TYPE_STEP_COUNTER)
+//			|| (sensor == INV_SENSOR_TYPE_BAC)
+//			|| (sensor == INV_SENSOR_TYPE_B2S)
+//			|| (sensor == INV_SENSOR_TYPE_SMD)
+//			|| (sensor == INV_SENSOR_TYPE_STEP_DETECTOR)
+//			|| (sensor == INV_SENSOR_TYPE_TILT_DETECTOR)
+//			|| (sensor == INV_SENSOR_TYPE_PICK_UP_GESTURE)
+//			) {
+//				return 0;
+//		} else if((sensor == INV_SENSOR_TYPE_MAGNETOMETER)
+//			|| (sensor == INV_SENSOR_TYPE_UNCAL_MAGNETOMETER)
+//			|| (sensor == INV_SENSOR_TYPE_ROTATION_VECTOR)
+//			|| (sensor == INV_SENSOR_TYPE_GEOMAG_ROTATION_VECTOR)){
+//				return 0;
+//		} else
+//			return INV_ERROR_BAD_ARG;
+//
+//	case DYN_PROTOCOL_EID_SELF_TEST:
+//		INV_MSG(INV_MSG_LEVEL_DEBUG, "DeviceEmdWrapper: received command self_test(%s)", inv_sensor_2str(sensor));
+//		if( (sensor == INV_SENSOR_TYPE_RAW_ACCELEROMETER || sensor == INV_SENSOR_TYPE_ACCELEROMETER) ||
+//			(sensor == INV_SENSOR_TYPE_RAW_GYROSCOPE || sensor == INV_SENSOR_TYPE_GYROSCOPE) ||
+//			(sensor == INV_SENSOR_TYPE_MAGNETOMETER)) {
+//				return icm20948_run_selftest();
+//		}
+//		else
+//			return INV_ERROR_BAD_ARG;
+//		break;
+//	case DYN_PROTOCOL_EID_START_SENSOR:
+//		INV_MSG(INV_MSG_LEVEL_DEBUG, "DeviceEmdWrapper: received command start(%s)", inv_sensor_2str(sensor));
+//		if (sensor > 0 && idd_sensortype_conversion(sensor) < INV_ICM20948_SENSOR_MAX) {
+//			if (icm_device.selftest_done && !icm_device.offset_done) {			// If we've run selftes and not already set the offset.
+//				inv_icm20948_set_offset(&icm_device, unscaled_bias);
+//				icm_device.offset_done = 1;
+//			}
+//			/* Sensor data will be notified */
+//			rc = inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(sensor), 1);
+//			enabled_sensor_mask |= (1 << idd_sensortype_conversion(sensor));
+//			return rc;
+//		} else
+//			return INV_ERROR_NIMPL; /*this sensor is not supported*/
+//
+//	case DYN_PROTOCOL_EID_STOP_SENSOR:
+//		INV_MSG(INV_MSG_LEVEL_DEBUG, "DeviceEmdWrapper: received command stop(%s)", inv_sensor_2str(sensor));
+//		if (sensor > 0 && idd_sensortype_conversion(sensor) < INV_ICM20948_SENSOR_MAX) {
+//			/* Sensor data will not be notified anymore */
+//			rc = inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(sensor), 0);
+//			enabled_sensor_mask &= ~(1 << idd_sensortype_conversion(sensor));
+//			return rc;
+//		} else
+//			return INV_ERROR_NIMPL; /*this sensor is not supported*/
+//
+//	case DYN_PROTOCOL_EID_SET_SENSOR_PERIOD:
+//		INV_MSG(INV_MSG_LEVEL_DEBUG, "DeviceEmdWrapper: received command set_period(%d us)",edata->d.command.period);
+//		rc = inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(sensor), edata->d.command.period / 1000);
+//		return rc;
+//
+//	case DYN_PROTOCOL_EID_SET_SENSOR_CFG:
+//		INV_MSG(INV_MSG_LEVEL_DEBUG, "DeviceEmdWrapper: received command set_sensor_config(%s)", inv_sensor_2str(sensor));
+//		return INV_ERROR_NIMPL;
+//
+//	case DYN_PROTOCOL_EID_CLEANUP:
+//	{
+//		int i_sensor = INV_SENSOR_TYPE_MAX;
+//		INV_MSG(INV_MSG_LEVEL_DEBUG, "DeviceEmdWrapper: received command cleanup");
+//
+//		/* Disable all sensors on cleanup */
+//		while(i_sensor-- > 0) {
+//			rc = inv_icm20948_enable_sensor(&icm_device, idd_sensortype_conversion(i_sensor), 0);
+//		}
+//
+//		/* Soft reset */
+//		rc += inv_icm20948_soft_reset(&icm_device);
+//		/* All sensors stop reporting on cleanup */
+//		enabled_sensor_mask = 0;
+//		return rc;
+//	}
+//
+//	default:
+//		return INV_ERROR_NIMPL;
+//	}
+//}
+
+int handle_command(enum DynProtocolEid eid){
 	int rc = 0;
 	uint8_t whoami;
-	const int sensor = edata->sensor_id;
+    // inv_sensor_type | inv_icm20948_sensor
+//    const int sensor = edata->sensor_id; // TODO найти эту хуйню и передать в функцию
+    /*
+     * Probably starts from 0 but where is it changing?
+     * DynProtocol.c:358 -> DynProtocol_decodeSensorEvent
+     *
+     * INV_SENSOR_TYPE_GEOMAG_ROTATION_VECTOR | INV_ICM20948_SENSOR_GEOMAGNETIC_ROTATION_VECTOR = 9Quad + heading?
+     * TODO check INV_SENSOR_TYPE_GEOMAG_ROTATION_VECTOR
+     */
+    const int sensor = INV_SENSOR_TYPE_ROTATION_VECTOR;
 
 	switch(eid) {
 
 	case DYN_PROTOCOL_EID_GET_SW_REG:
-		if(edata->d.command.regAddr == DYN_PROTOCOL_EREG_HANDSHAKE_SUPPORT)
-			return InvEMDFrontEnd_isHwFlowCtrlSupportedHook();
 		return 0;
 
 	case DYN_PROTOCOL_EID_SETUP:
@@ -672,17 +697,21 @@ int handle_command(enum DynProtocolEid eid, const DynProtocolEdata_t * edata, Dy
 			return INV_ERROR_NIMPL; /*this sensor is not supported*/
 
 	case DYN_PROTOCOL_EID_SET_SENSOR_PERIOD:
-		INV_MSG(INV_MSG_LEVEL_DEBUG, "DeviceEmdWrapper: received command set_period(%d us)",edata->d.command.period);
-		rc = inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(sensor), edata->d.command.period / 1000);
-		return rc;
+//        INV_MSG(INV_MSG_LEVEL_DEBUG, "DeviceEmdWrapper: received command set_period(%d us)",edata->d.command.period);
+//        ESP_LOGI(TAG, "DeviceEmdWrapper: received command set_period(%d us)", 0);
+//		rc = inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(sensor), edata->d.command.period / 1000);
+//		return rc;
+        return INV_ERROR_NIMPL; /* TODO: Not implemented */
 
 	case DYN_PROTOCOL_EID_SET_SENSOR_CFG:
-		INV_MSG(INV_MSG_LEVEL_DEBUG, "DeviceEmdWrapper: received command set_sensor_config(%s)", inv_sensor_2str(sensor));
+        ESP_LOGI(TAG, "DeviceEmdWrapper: received command set_sensor_config(%s)", inv_sensor_2str(sensor));
+//		INV_MSG(INV_MSG_LEVEL_DEBUG, "DeviceEmdWrapper: received command set_sensor_config(%s)", inv_sensor_2str(sensor));
 		return INV_ERROR_NIMPL;
 
 	case DYN_PROTOCOL_EID_CLEANUP:
 	{
 		int i_sensor = INV_SENSOR_TYPE_MAX;
+        ESP_LOGI(TAG, "DeviceEmdWrapper: received command cleanup");
 		INV_MSG(INV_MSG_LEVEL_DEBUG, "DeviceEmdWrapper: received command cleanup");
 
 		/* Disable all sensors on cleanup */
@@ -701,6 +730,7 @@ int handle_command(enum DynProtocolEid eid, const DynProtocolEdata_t * edata, Dy
 		return INV_ERROR_NIMPL;
 	}
 }
+
 
 void inv_icm20948_get_st_bias(struct inv_icm20948 * s, int *gyro_bias, int *accel_bias, int * st_bias, int * unscaled){
 	int axis, axis_sign;
@@ -768,6 +798,7 @@ int icm20948_run_selftest(void){
 	static int raw_bias[THREE_AXES * 2];
 
 	if (icm_device.selftest_done == 1) {
+        ESP_LOGI(TAG, "Self-test has already run. Skipping.");
 		INV_MSG(INV_MSG_LEVEL_INFO, "Self-test has already run. Skipping.");
 	}
 	else {
@@ -775,6 +806,7 @@ int icm20948_run_selftest(void){
 		* Perform self-test
 		* For ICM20948 self-test is performed for both RAW_ACC/RAW_GYR
 		*/
+        ESP_LOGI(TAG, "Running self-test...");
 		INV_MSG(INV_MSG_LEVEL_INFO, "Running self-test...");
 
 		/* Run the self-test */
@@ -786,6 +818,7 @@ int icm20948_run_selftest(void){
 			rc = 0;
 		} else {
 			/* On A|G|M self-test failure, return Error */
+            ESP_LOGE(TAG, "Self-test failure !");
 			INV_MSG(INV_MSG_LEVEL_ERROR, "Self-test failure !");
 			/* 0 would be considered OK, we want KO */
 			rc = INV_ERROR;
@@ -794,7 +827,9 @@ int icm20948_run_selftest(void){
 		/* It's advised to re-init the icm20948 device after self-test for normal use */
 		icm20948_sensor_setup();
 		inv_icm20948_get_st_bias(&icm_device, gyro_bias_regular, accel_bias_regular, raw_bias, unscaled_bias);
+        ESP_LOGI(TAG, "GYR bias (FS=250dps) (dps): x=%f, y=%f, z=%f", (float)(raw_bias[0] / (float)(1 << 16)), (float)(raw_bias[1] / (float)(1 << 16)), (float)(raw_bias[2] / (float)(1 << 16)));
 		INV_MSG(INV_MSG_LEVEL_INFO, "GYR bias (FS=250dps) (dps): x=%f, y=%f, z=%f", (float)(raw_bias[0] / (float)(1 << 16)), (float)(raw_bias[1] / (float)(1 << 16)), (float)(raw_bias[2] / (float)(1 << 16)));
+        ESP_LOGI(TAG, "ACC bias (FS=2g) (g): x=%f, y=%f, z=%f", (float)(raw_bias[0 + 3] / (float)(1 << 16)), (float)(raw_bias[1 + 3] / (float)(1 << 16)), (float)(raw_bias[2 + 3] / (float)(1 << 16)));
 		INV_MSG(INV_MSG_LEVEL_INFO, "ACC bias (FS=2g) (g): x=%f, y=%f, z=%f", (float)(raw_bias[0 + 3] / (float)(1 << 16)), (float)(raw_bias[1 + 3] / (float)(1 << 16)), (float)(raw_bias[2 + 3] / (float)(1 << 16)));
 	}
 

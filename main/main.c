@@ -2,16 +2,22 @@
 #include "driver/uart.h"
 #include "driver/gpio.h"
 #include <esp_log.h>
+#include <inttypes.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include "freertos/queue.h"
 #include <stdio.h>
+
 #include "icm20948_driver.h"
+#include "icm20948_hal.h"
+
 #ifndef APP_CPU_NUM
 #define APP_CPU_NUM PRO_CPU_NUM
 #endif
 
 #define SDA_PIN 41
 #define SCL_PIN 42
+#define ICM_INT 40
 
 #define ACK_EN 1
 #define NACK 0
@@ -44,6 +50,15 @@ struct i2c_action {
     uint8_t reg;
     uint8_t data;
 };
+
+int state = 0;
+xQueueHandle interputQueue;
+
+static void IRAM_ATTR icm_interrupt_handler(void *args)
+{
+    int pinNumber = (int)args;
+    xQueueSendFromISR(interputQueue, &pinNumber, NULL);
+}
 
 void task(void *ignore)
 {
@@ -274,14 +289,85 @@ static void echo_task(void *arg)
     }
 }
 
+static void icm_task(void *arg) {
+    /* Configure parameters of an UART driver,
+     * communication pins and install the driver */
+    uart_config_t uart_config = {
+            .baud_rate = 115200,
+            .data_bits = UART_DATA_8_BITS,
+            .parity    = UART_PARITY_DISABLE,
+            .stop_bits = UART_STOP_BITS_1,
+            .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+            .source_clk = UART_SCLK_APB,
+    };
+    int intr_alloc_flags = 0;
+
+#if CONFIG_UART_ISR_IN_IRAM
+    intr_alloc_flags = ESP_INTR_FLAG_IRAM;
+#endif
+
+    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_0, BUF_SIZE * 2, 0, 0, NULL, intr_alloc_flags));
+    ESP_ERROR_CHECK(uart_param_config(UART_NUM_0, &uart_config));
+    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_0, GPIO_NUM_43, GPIO_NUM_44, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+
+    ESP_LOGI(TAG, "Init ICM20948");
+    icm20948_hal_init();
+    ESP_LOGI(TAG, "Init Done");
+    ESP_LOGI(TAG, "Start Polling");
+    while (1) {
+        icm20948_hal_poll();
+#define DEBUG_PRINT 1
+#ifdef DEBUG_PRINT
+        static uint32_t print_time = 0;
+        if (print_time % 1000 == 0) {
+//            icm20948_hal_print();
+            ESP_LOGI(TAG, "Poll cont: %u", print_time);
+            char buffer[1024];
+            vTaskGetRunTimeStats(buffer);
+            printf("\n\n%s\n", buffer);
+        }
+        print_time++;
+#endif
+        vTaskDelay(pdMS_TO_TICKS(2));
+    }
+}
+
+void LED_Control_Task(void *params)
+{
+    int pinNumber, count = 0;
+    while (true)
+    {
+        if (xQueueReceive(interputQueue, &pinNumber, portMAX_DELAY))
+        {
+            printf("GPIO %d was pressed %d times. The state is %d\n", pinNumber, count++, gpio_get_level(ICM_INT));
+//            gpio_set_level(LED_PIN, gpio_get_level(ICM_INT));
+
+        }
+    }
+}
+
+
 void app_main()
 {
+    gpio_pad_select_gpio(ICM_INT);
+    gpio_set_direction(ICM_INT, GPIO_MODE_INPUT);
+    gpio_pulldown_en(ICM_INT);
+    gpio_pullup_dis(ICM_INT);
+    gpio_set_intr_type(ICM_INT, GPIO_INTR_POSEDGE);
+
+    interputQueue = xQueueCreate(10, sizeof(int));
+    xTaskCreate(LED_Control_Task, "LED_Control_Task", 2048, NULL, 1, NULL);
+
+    gpio_install_isr_service(0);
+    gpio_isr_handler_add(ICM_INT, icm_interrupt_handler, (void *)ICM_INT);
+
     if (init_i2c() != ESP_OK) {
         ESP_LOGE(TAG, "Can't init i2c bus");
         while (1); // hang esp
     }
     // Start task
 //    xTaskCreatePinnedToCore(task, TAG, configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, PRO_CPU_NUM);
-    xTaskCreatePinnedToCore(echo_task, "uart_echo_task", 2048, NULL, 10, NULL, PRO_CPU_NUM);
+//    xTaskCreatePinnedToCore(echo_task, "uart_echo_task", 2048, NULL, 10, NULL, PRO_CPU_NUM);
+    xTaskCreatePinnedToCore(icm_task, "ICM_TASK", 2048 * 2, NULL, 10, NULL, PRO_CPU_NUM);
 //    xTaskCreate(echo_task, "uart_echo_task", 2048, NULL, 10, NULL);
 }

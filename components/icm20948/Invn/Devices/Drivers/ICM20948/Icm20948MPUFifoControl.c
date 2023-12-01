@@ -19,6 +19,8 @@
 
 #include "Icm20948AuxCompassAkm.h"
 
+#include "../../../EmbUtils/Message.h"
+
 struct inv_fifo_decoded_t fd;
 
 static void inv_decode_3_16bit_elements(short *out_data, const unsigned char *in_data);
@@ -42,18 +44,34 @@ int inv_icm20948_identify_interrupt(struct inv_icm20948 * s, short *int_read)
 {
 	unsigned char int_status;
     int result=0 ;
-    
     if(int_read)
         *int_read = 0;
-    
+//    printf("%s:%d | Hi\n", __PRETTY_FUNCTION__, __LINE__);
     result = inv_icm20948_read_mems_reg(s, REG_INT_STATUS, 1, &int_status);
+#ifdef DEBUG_PRINT
+    static uint32_t print_time = 0;
+    print_time++;
+    if (print_time % 100 == 0) {
+        printf("%s:%d | inv_icm20948_read_mems_reg: %u\n", __PRETTY_FUNCTION__, __LINE__, int_status);
+    }
+#endif
     if(int_read)
         *int_read = int_status;
 
     result = inv_icm20948_read_mems_reg(s, REG_DMP_INT_STATUS, 1, &int_status); // DMP_INT_STATUS
+#ifdef DEBUG_PRINT
+    if (print_time % 100 == 0) {
+        printf("%s:%d | inv_icm20948_read_mems_reg2: %u\n", __PRETTY_FUNCTION__, __LINE__, int_status);
+    }
+#endif
 	if(int_read)
 		*int_read |= (int_status << 8);
-    
+
+#ifdef DEBUG_PRINT
+    if (print_time % 100 == 0) {
+        printf("%s:%d | int_read: %u\n", __PRETTY_FUNCTION__, __LINE__, *int_read);
+    }
+#endif
     /*if(wake_on_motion_enabled) {
         result = inv_icm20948_read_mems_reg(s, REG_INT_STATUS, 1, &int_status);//INT_STATUS
         if(result)
@@ -65,7 +83,6 @@ int inv_icm20948_identify_interrupt(struct inv_icm20948 * s, short *int_read)
      * When we read FIFO_SIZE we can determine if FIFO overflow has occured.
      */
     //result = inv_icm20948_read_mems_reg(s, 0x1B, 1, &int_status);
-    
 	return result;
 }
 
