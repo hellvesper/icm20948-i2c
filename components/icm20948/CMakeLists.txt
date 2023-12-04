@@ -4,6 +4,7 @@ set(priv_incs
  "Invn"
  "Invn/Common"
  "Invn/Devices"
+ "Invn/DynamicProtocol"
  "Invn/EmbUtils"
  "Invn/Images"
  "Invn/VSensor"

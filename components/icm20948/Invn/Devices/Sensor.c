@@ -25,7 +25,7 @@
 
 #include <assert.h>
 
-const char * inv_sensor_2str(int sensor)
+const char * inv_sensor_2str(unsigned int sensor)
 {
 	static const char * sensor_str[INV_SENSOR_TYPE_MAX][2] = {
 		{ "SENSOR_RESERVED",               "SENSOR_RESERVED_WU" },

@@ -419,7 +419,7 @@ static inline void inv_sensor_listener_notify(const inv_sensor_listener_t * list
 /** @brief Utility function that returns a string from a sensor id
  *  Empty string is returned if sensor is invalid
  */
-const char INV_EXPORT * inv_sensor_str(int sensor);
+const char INV_EXPORT * inv_sensor_str(unsigned int sensor);
 
 /** @brief Alias for inv_sensor_str
  */

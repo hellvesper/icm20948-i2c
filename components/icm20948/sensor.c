@@ -51,6 +51,7 @@ static const char *TAG = "sensor.c";
 
 /* TDK Sensor */
 #include "sensor.h"
+#include "DynProtocol.h"
 
 
 
@@ -107,7 +108,7 @@ static uint8_t convert_to_generic_ids[INV_ICM20948_SENSOR_MAX] = {
 /*
 * Mask to keep track of enabled sensors
 */
-static uint32_t enabled_sensor_mask = 0;
+static uint32_t enabled_sensor_mask = 0; // TODO add enabled sensors list command to handle_command and EID type
 
 static enum inv_icm20948_sensor idd_sensortype_conversion(int sensor);
 static void icm20948_apply_mounting_matrix(void);
@@ -381,12 +382,58 @@ void sensor_event(const inv_sensor_event_t * event, void * arg){
 //           event->data.quaternion.quat[2],
 //           event->data.quaternion.quat[3],
 //           event->data.quaternion.accuracy_flag);
-    printf("/*%f,%f,%f,%f,%f*/\n",
-           event->data.quaternion.accuracy,
-           event->data.quaternion.quat[0],
-           event->data.quaternion.quat[1],
-           event->data.quaternion.quat[2],
-           event->data.quaternion.quat[3]);
+
+    switch (event->sensor) {
+        case INV_SENSOR_TYPE_ROTATION_VECTOR:
+            printf("/*%u,%f,%f,%f,%f,%f*/\n",
+                   event->sensor,
+                   event->data.quaternion.accuracy,
+                   event->data.quaternion.quat[0],
+                   event->data.quaternion.quat[1],
+                   event->data.quaternion.quat[2],
+                   event->data.quaternion.quat[3]);
+            break;
+
+        case INV_SENSOR_TYPE_ACCELEROMETER:
+            printf("/*%u,%f,%f,%f,%f,%f,%f,%hhu*/\n",
+                   event->sensor,
+                   event->data.acc.vect[0],
+                   event->data.acc.vect[1],
+                   event->data.acc.vect[2],
+                   event->data.acc.bias[0],
+                   event->data.acc.bias[1],
+                   event->data.acc.bias[2],
+                   event->data.acc.accuracy_flag);
+            break;
+        case INV_SENSOR_TYPE_GYROSCOPE:
+            printf("/*%u,%f,%f,%f,%f,%f,%f,%hhu*/\n",
+                   event->sensor,
+                   event->data.gyr.vect[0],
+                   event->data.gyr.vect[1],
+                   event->data.gyr.vect[2],
+                   event->data.gyr.bias[0],
+                   event->data.gyr.bias[1],
+                   event->data.gyr.bias[2],
+                   event->data.gyr.accuracy_flag);
+            break;
+        case INV_SENSOR_TYPE_MAGNETOMETER:
+            printf("/*%u,%f,%f,%f,%f,%f,%f,%hhu*/\n",
+                   event->sensor,
+                   event->data.mag.vect[0],
+                   event->data.mag.vect[1],
+                   event->data.mag.vect[2],
+                   event->data.mag.bias[0],
+                   event->data.mag.bias[1],
+                   event->data.mag.bias[2],
+                   event->data.mag.accuracy_flag);
+            break;
+
+        default:
+            printf("%s:%d | Sensor ID: %s\n", __PRETTY_FUNCTION__, __LINE__, inv_sensor_2str(event->sensor));
+    }
+
+    if (event->sensor == INV_SENSOR_TYPE_ROTATION_VECTOR) {
+    }
 
 #endif
 }
@@ -569,11 +616,11 @@ static enum inv_icm20948_sensor idd_sensortype_conversion(int sensor){
 //	}
 //}
 
-int handle_command(enum DynProtocolEid eid){
+int handle_command(enum DynProtocolEid eid, enum inv_sensor_type sensor_type) {
 	int rc = 0;
 	uint8_t whoami;
     // inv_sensor_type | inv_icm20948_sensor
-//    const int sensor = edata->sensor_id; // TODO найти эту хуйню и передать в функцию
+//    const int sensor = edata->sensor_id;
     /*
      * Probably starts from 0 but where is it changing?
      * DynProtocol.c:358 -> DynProtocol_decodeSensorEvent
@@ -581,7 +628,7 @@ int handle_command(enum DynProtocolEid eid){
      * INV_SENSOR_TYPE_GEOMAG_ROTATION_VECTOR | INV_ICM20948_SENSOR_GEOMAGNETIC_ROTATION_VECTOR = 9Quad + heading?
      * TODO check INV_SENSOR_TYPE_GEOMAG_ROTATION_VECTOR
      */
-    const int sensor = INV_SENSOR_TYPE_ROTATION_VECTOR;
+    const int sensor = sensor_type; // default INV_SENSOR_TYPE_ROTATION_VECTOR
 
 	switch(eid) {
 
@@ -652,12 +699,14 @@ int handle_command(enum DynProtocolEid eid){
 			|| (sensor == INV_SENSOR_TYPE_STEP_DETECTOR)
 			|| (sensor == INV_SENSOR_TYPE_TILT_DETECTOR)
 			|| (sensor == INV_SENSOR_TYPE_PICK_UP_GESTURE)
-			) {
+			)
+        {
 				return 0;
 		} else if((sensor == INV_SENSOR_TYPE_MAGNETOMETER)
 			|| (sensor == INV_SENSOR_TYPE_UNCAL_MAGNETOMETER)
 			|| (sensor == INV_SENSOR_TYPE_ROTATION_VECTOR)
-			|| (sensor == INV_SENSOR_TYPE_GEOMAG_ROTATION_VECTOR)){
+			|| (sensor == INV_SENSOR_TYPE_GEOMAG_ROTATION_VECTOR))
+        {
 				return 0;
 		} else
 			return INV_ERROR_BAD_ARG;
@@ -697,10 +746,10 @@ int handle_command(enum DynProtocolEid eid){
 			return INV_ERROR_NIMPL; /*this sensor is not supported*/
 
 	case DYN_PROTOCOL_EID_SET_SENSOR_PERIOD:
-//        INV_MSG(INV_MSG_LEVEL_DEBUG, "DeviceEmdWrapper: received command set_period(%d us)",edata->d.command.period);
-//        ESP_LOGI(TAG, "DeviceEmdWrapper: received command set_period(%d us)", 0);
-//		rc = inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(sensor), edata->d.command.period / 1000);
-//		return rc;
+        // INV_MSG(INV_MSG_LEVEL_DEBUG, "DeviceEmdWrapper: received command set_period(%d us)",edata->d.command.period);
+        ESP_LOGI(TAG, "DeviceEmdWrapper: received command set_period(%d us)", 0);
+		// rc = inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(sensor), edata->d.command.period / 1000);
+		// return rc;
         return INV_ERROR_NIMPL; /* TODO: Not implemented */
 
 	case DYN_PROTOCOL_EID_SET_SENSOR_CFG:

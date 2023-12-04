@@ -55,15 +55,39 @@ void icm20948_hal_init(void )
     rc = icm20948_sensor_setup();
 
     /*
+     * inv_icm20948_set_sensor_period - set ODR (output data rate)
+     */
+
+    /*
     * Now that Icm20948 device was initialized, we can proceed with DMP image loading
     * This step is mandatory as DMP image are not store in non-volatile memory
     */
     rc += load_dmp3();
     check_rc(rc, "Error sensor_setup/DMP loading.");
 
-    ESP_LOGI(TAG, "Command START SENSOR");
-    handle_command(DYN_PROTOCOL_EID_START_SENSOR);
+//    ESP_LOGI(TAG, "Command START SENSOR INV_SENSOR_TYPE_ROTATION_VECTOR");
+//    handle_command(DYN_PROTOCOL_EID_START_SENSOR, INV_SENSOR_TYPE_ROTATION_VECTOR);
+//    ESP_LOGI(TAG, "Command START DONE");
+    ESP_LOGI(TAG, "Command START SENSOR INV_SENSOR_TYPE_ROTATION_VECTOR");
+    handle_command(DYN_PROTOCOL_EID_START_SENSOR, INV_SENSOR_TYPE_ACCELEROMETER);
     ESP_LOGI(TAG, "Command START DONE");
+    ESP_LOGI(TAG, "Command START SENSOR INV_SENSOR_TYPE_ROTATION_VECTOR");
+    handle_command(DYN_PROTOCOL_EID_START_SENSOR, INV_SENSOR_TYPE_GYROSCOPE);
+    ESP_LOGI(TAG, "Command START DONE");
+    ESP_LOGI(TAG, "Command START SENSOR INV_SENSOR_TYPE_ROTATION_VECTOR");
+    handle_command(DYN_PROTOCOL_EID_START_SENSOR, INV_SENSOR_TYPE_MAGNETOMETER);
+    ESP_LOGI(TAG, "Command START DONE");
+    /*
+     * Calibrated:
+     * INV_SENSOR_TYPE_ACCELEROMETER
+     * INV_SENSOR_TYPE_GYROSCOPE
+     * INV_SENSOR_TYPE_MAGNETOMETER
+     *
+     * Raw:
+     * INV_SENSOR_TYPE_UNCAL_GYROSCOPE
+     * INV_SENSOR_TYPE_UNCAL_MAGNETOMETER
+     *
+     */
 }
 
 void icm20948_hal_poll(void )
