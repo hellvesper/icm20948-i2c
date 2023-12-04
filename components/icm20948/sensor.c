@@ -349,6 +349,7 @@ void build_sensor_event_data(void * context, enum inv_icm20948_sensor sensortype
 }
 
 typedef struct {
+	uint32_t rotation_count;
 	uint32_t accel_count;
 	uint32_t gyro_count;
 	uint32_t mag_count;
@@ -367,7 +368,7 @@ void sensor_event(const inv_sensor_event_t * event, void * arg){
      * event.data.quaternion.quat, data, sizeof(event.data.quaternion.quat));
      */
     static uint32_t event_count = 0;
-	static SensorData sensorData = { 0, 0, 0 };
+	static SensorData sensorData = { 0, 0, 0, 0 };
 	static int64_t event_timer = 0;
 
     event_count++;
@@ -386,9 +387,11 @@ void sensor_event(const inv_sensor_event_t * event, void * arg){
 	int64_t cur_time = esp_timer_get_time();
 	if (cur_time - event_timer >= 1000000) {
 		event_timer = cur_time;
+		ESP_LOGI(TAG, "Rotation ODR: %u", sensorData.rotation_count);
 		ESP_LOGI(TAG, "Accel ODR: %u", sensorData.accel_count);
 		ESP_LOGI(TAG, "Gyro ODR: %u", sensorData.gyro_count);
 		ESP_LOGI(TAG, "Mag ODR: %u", sensorData.mag_count);
+		sensorData.rotation_count = 0;
 		sensorData.accel_count = 0;
 		sensorData.gyro_count = 0;
 		sensorData.mag_count = 0;
@@ -404,6 +407,7 @@ void sensor_event(const inv_sensor_event_t * event, void * arg){
 
     switch (event->sensor) {
         case INV_SENSOR_TYPE_ROTATION_VECTOR:
+        	sensorData.rotation_count++;
             // printf("/*%u,%f,%f,%f,%f,%f*/\n",
             //        event->sensor,
             //        event->data.quaternion.accuracy,

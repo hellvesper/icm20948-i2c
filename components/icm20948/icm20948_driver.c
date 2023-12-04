@@ -29,7 +29,7 @@ esp_err_t init_i2c(void)
     conf.scl_io_num = SCL_PIN;
     conf.sda_pullup_en = GPIO_PULLUP_ENABLE;
     conf.scl_pullup_en = GPIO_PULLUP_ENABLE;
-    conf.master.clk_speed = 100000;
+    conf.master.clk_speed = 400000;
     conf.clk_flags = I2C_SCLK_DEFAULT;
 
     esp_err_t ret;

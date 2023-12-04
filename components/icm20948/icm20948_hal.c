@@ -66,11 +66,12 @@ void icm20948_hal_init(void )
     check_rc(rc, "Error sensor_setup/DMP loading.");
 
     DynProtocolEdata_t edata;
-    edata.d.command.period = 2000; //in µs
+    edata.d.command.period = 1000; //in µs
 
-//    ESP_LOGI(TAG, "Command START SENSOR INV_SENSOR_TYPE_ROTATION_VECTOR");
-//    handle_command(DYN_PROTOCOL_EID_START_SENSOR, INV_SENSOR_TYPE_ROTATION_VECTOR);
-//    ESP_LOGI(TAG, "Command START DONE");
+    ESP_LOGI(TAG, "Command START SENSOR INV_SENSOR_TYPE_ROTATION_VECTOR");
+    edata.sensor_id = INV_SENSOR_TYPE_ROTATION_VECTOR;
+    handle_command(DYN_PROTOCOL_EID_START_SENSOR, INV_SENSOR_TYPE_ROTATION_VECTOR, &edata);
+    ESP_LOGI(TAG, "Command START DONE");
     ESP_LOGI(TAG, "Command START SENSOR INV_SENSOR_TYPE_ROTATION_VECTOR");
     edata.sensor_id = INV_SENSOR_TYPE_ACCELEROMETER;
     handle_command(DYN_PROTOCOL_EID_START_SENSOR, INV_SENSOR_TYPE_ACCELEROMETER, &edata);
