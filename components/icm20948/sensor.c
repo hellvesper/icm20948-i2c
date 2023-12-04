@@ -33,7 +33,7 @@
 #include "Invn/EmbUtils/ErrorHelper.h"
 #include "Invn/EmbUtils/DataConverter.h"
 #include "Invn/EmbUtils/RingBuffer.h"
-//#include "Invn/DynamicProtocol/DynProtocol.h"
+#include "Invn/DynamicProtocol/DynProtocol.h"
 //#include "Invn/DynamicProtocol/DynProtocolTransportUart.h"
 
 /* Atmel system */
@@ -51,7 +51,6 @@ static const char *TAG = "sensor.c";
 
 /* TDK Sensor */
 #include "sensor.h"
-#include "DynProtocol.h"
 
 
 
@@ -349,6 +348,13 @@ void build_sensor_event_data(void * context, enum inv_icm20948_sensor sensortype
 	sensor_event(&event, NULL);
 }
 
+typedef struct {
+	uint32_t accel_count;
+	uint32_t gyro_count;
+	uint32_t mag_count;
+} SensorData;
+
+
 void sensor_event(const inv_sensor_event_t * event, void * arg){
 	/* arg will contain the value provided at init time */
 	(void)arg;
@@ -361,6 +367,9 @@ void sensor_event(const inv_sensor_event_t * event, void * arg){
      * event.data.quaternion.quat, data, sizeof(event.data.quaternion.quat));
      */
     static uint32_t event_count = 0;
+	static SensorData sensorData = { 0, 0, 0 };
+	static int64_t event_timer = 0;
+
     event_count++;
 //	static uint8_t async_buffer[256]; /* static to take on .bss */
 //	uint16_t async_bufferLen;
@@ -373,7 +382,17 @@ void sensor_event(const inv_sensor_event_t * event, void * arg){
 
 #ifdef DEBUG_PRINT
 //    ESP_LOGI(TAG, "Ev Cnt: %u", event_count);
-    printf("%s:%d | Sensor ID: %s\n", __PRETTY_FUNCTION__, __LINE__, inv_sensor_2str(event->sensor));
+    // printf("%s:%d | Sensor ID: %s\n", __PRETTY_FUNCTION__, __LINE__, inv_sensor_2str(event->sensor));
+	int64_t cur_time = esp_timer_get_time();
+	if (cur_time - event_timer >= 1000000) {
+		event_timer = cur_time;
+		ESP_LOGI(TAG, "Accel ODR: %u", sensorData.accel_count);
+		ESP_LOGI(TAG, "Gyro ODR: %u", sensorData.gyro_count);
+		ESP_LOGI(TAG, "Mag ODR: %u", sensorData.mag_count);
+		sensorData.accel_count = 0;
+		sensorData.gyro_count = 0;
+		sensorData.mag_count = 0;
+	}
 //    printf("Accuracy: %f deg | Quaterion W: %f | X: %f | Y: %f | Z: %f | Flag: %u\n",
 //    printf("DATA_Q A:%f W:%f X:%f Y:%f Z:%f F:%u\n",
 //           event->data.quaternion.accuracy,
@@ -385,54 +404,54 @@ void sensor_event(const inv_sensor_event_t * event, void * arg){
 
     switch (event->sensor) {
         case INV_SENSOR_TYPE_ROTATION_VECTOR:
-            printf("/*%u,%f,%f,%f,%f,%f*/\n",
-                   event->sensor,
-                   event->data.quaternion.accuracy,
-                   event->data.quaternion.quat[0],
-                   event->data.quaternion.quat[1],
-                   event->data.quaternion.quat[2],
-                   event->data.quaternion.quat[3]);
+            // printf("/*%u,%f,%f,%f,%f,%f*/\n",
+            //        event->sensor,
+            //        event->data.quaternion.accuracy,
+            //        event->data.quaternion.quat[0],
+            //        event->data.quaternion.quat[1],
+            //        event->data.quaternion.quat[2],
+            //        event->data.quaternion.quat[3]);
             break;
 
         case INV_SENSOR_TYPE_ACCELEROMETER:
-            printf("/*%u,%f,%f,%f,%f,%f,%f,%hhu*/\n",
-                   event->sensor,
-                   event->data.acc.vect[0],
-                   event->data.acc.vect[1],
-                   event->data.acc.vect[2],
-                   event->data.acc.bias[0],
-                   event->data.acc.bias[1],
-                   event->data.acc.bias[2],
-                   event->data.acc.accuracy_flag);
+        	sensorData.accel_count++;
+            // printf("/*%u,%f,%f,%f,%f,%f,%f,%hhu*/\n",
+            //        event->sensor,
+            //        event->data.acc.vect[0],
+            //        event->data.acc.vect[1],
+            //        event->data.acc.vect[2],
+            //        event->data.acc.bias[0],
+            //        event->data.acc.bias[1],
+            //        event->data.acc.bias[2],
+            //        event->data.acc.accuracy_flag);
             break;
         case INV_SENSOR_TYPE_GYROSCOPE:
-            printf("/*%u,%f,%f,%f,%f,%f,%f,%hhu*/\n",
-                   event->sensor,
-                   event->data.gyr.vect[0],
-                   event->data.gyr.vect[1],
-                   event->data.gyr.vect[2],
-                   event->data.gyr.bias[0],
-                   event->data.gyr.bias[1],
-                   event->data.gyr.bias[2],
-                   event->data.gyr.accuracy_flag);
+        	sensorData.gyro_count++;
+            // printf("/*%u,%f,%f,%f,%f,%f,%f,%hhu*/\n",
+            //        event->sensor,
+            //        event->data.gyr.vect[0],
+            //        event->data.gyr.vect[1],
+            //        event->data.gyr.vect[2],
+            //        event->data.gyr.bias[0],
+            //        event->data.gyr.bias[1],
+            //        event->data.gyr.bias[2],
+            //        event->data.gyr.accuracy_flag);
             break;
         case INV_SENSOR_TYPE_MAGNETOMETER:
-            printf("/*%u,%f,%f,%f,%f,%f,%f,%hhu*/\n",
-                   event->sensor,
-                   event->data.mag.vect[0],
-                   event->data.mag.vect[1],
-                   event->data.mag.vect[2],
-                   event->data.mag.bias[0],
-                   event->data.mag.bias[1],
-                   event->data.mag.bias[2],
-                   event->data.mag.accuracy_flag);
+        	sensorData.mag_count++;
+            // printf("/*%u,%f,%f,%f,%f,%f,%f,%hhu*/\n",
+            //        event->sensor,
+            //        event->data.mag.vect[0],
+            //        event->data.mag.vect[1],
+            //        event->data.mag.vect[2],
+            //        event->data.mag.bias[0],
+            //        event->data.mag.bias[1],
+            //        event->data.mag.bias[2],
+            //        event->data.mag.accuracy_flag);
             break;
 
         default:
             printf("%s:%d | Sensor ID: %s\n", __PRETTY_FUNCTION__, __LINE__, inv_sensor_2str(event->sensor));
-    }
-
-    if (event->sensor == INV_SENSOR_TYPE_ROTATION_VECTOR) {
     }
 
 #endif
@@ -616,19 +635,12 @@ static enum inv_icm20948_sensor idd_sensortype_conversion(int sensor){
 //	}
 //}
 
-int handle_command(enum DynProtocolEid eid, enum inv_sensor_type sensor_type) {
+int handle_command(enum DynProtocolEid eid, enum inv_sensor_type sensor_type, const DynProtocolEdata_t * edata) {
 	int rc = 0;
 	uint8_t whoami;
     // inv_sensor_type | inv_icm20948_sensor
-//    const int sensor = edata->sensor_id;
-    /*
-     * Probably starts from 0 but where is it changing?
-     * DynProtocol.c:358 -> DynProtocol_decodeSensorEvent
-     *
-     * INV_SENSOR_TYPE_GEOMAG_ROTATION_VECTOR | INV_ICM20948_SENSOR_GEOMAGNETIC_ROTATION_VECTOR = 9Quad + heading?
-     * TODO check INV_SENSOR_TYPE_GEOMAG_ROTATION_VECTOR
-     */
-    const int sensor = sensor_type; // default INV_SENSOR_TYPE_ROTATION_VECTOR
+    const int sensor = edata->sensor_id;
+    // const int sensor = sensor_type; // default INV_SENSOR_TYPE_ROTATION_VECTOR
 
 	switch(eid) {
 
@@ -743,19 +755,18 @@ int handle_command(enum DynProtocolEid eid, enum inv_sensor_type sensor_type) {
 			enabled_sensor_mask &= ~(1 << idd_sensortype_conversion(sensor));
 			return rc;
 		} else
-			return INV_ERROR_NIMPL; /*this sensor is not supported*/
+			return INV_ERROR_NIMPL; /*this sensor is not supported, Not implemented*/
 
 	case DYN_PROTOCOL_EID_SET_SENSOR_PERIOD:
         // INV_MSG(INV_MSG_LEVEL_DEBUG, "DeviceEmdWrapper: received command set_period(%d us)",edata->d.command.period);
         ESP_LOGI(TAG, "DeviceEmdWrapper: received command set_period(%d us)", 0);
-		// rc = inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(sensor), edata->d.command.period / 1000);
-		// return rc;
-        return INV_ERROR_NIMPL; /* TODO: Not implemented */
+		rc = inv_icm20948_set_sensor_period(&icm_device, idd_sensortype_conversion(sensor), edata->d.command.period / 1000);
+		return rc;
 
 	case DYN_PROTOCOL_EID_SET_SENSOR_CFG:
         ESP_LOGI(TAG, "DeviceEmdWrapper: received command set_sensor_config(%s)", inv_sensor_2str(sensor));
-//		INV_MSG(INV_MSG_LEVEL_DEBUG, "DeviceEmdWrapper: received command set_sensor_config(%s)", inv_sensor_2str(sensor));
-		return INV_ERROR_NIMPL;
+		INV_MSG(INV_MSG_LEVEL_DEBUG, "DeviceEmdWrapper: received command set_sensor_config(%s)", inv_sensor_2str(sensor));
+		return INV_ERROR_NIMPL; /* Not implemented */
 
 	case DYN_PROTOCOL_EID_CLEANUP:
 	{

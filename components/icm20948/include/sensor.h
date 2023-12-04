@@ -36,7 +36,7 @@ int icm20948_sensor_setup(void);
 //void iddwrapper_protocol_event_cb(enum DynProtocolEtype etype, enum DynProtocolEid eid, const DynProtocolEdata_t * edata, void * cookie);
 //void iddwrapper_transport_event_cb(enum DynProTransportEvent e, union DynProTransportEventData data, void * cookie);
 void sensor_event(const inv_sensor_event_t * event, void * arg);
-int handle_command(enum DynProtocolEid eid, enum inv_sensor_type sensor_type);
+int handle_command(enum DynProtocolEid eid, enum inv_sensor_type sensor_type, const DynProtocolEdata_t * edata);
 int icm20948_run_selftest(void);
 void inv_icm20948_get_st_bias(struct inv_icm20948 * s, int *gyro_bias, int *accel_bias, int * st_bias, int * unscaled);
 void InvEMDFrontEnd_busyWaitUsHook(uint32_t us);

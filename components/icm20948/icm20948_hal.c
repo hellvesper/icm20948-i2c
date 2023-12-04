@@ -13,7 +13,7 @@
 #include "Invn/EmbUtils/ErrorHelper.h"
 #include "Invn/EmbUtils/DataConverter.h"
 #include "Invn/EmbUtils/RingBuffer.h"
-//#include "Invn/DynamicProtocol/DynProtocol.h"
+#include "Invn/DynamicProtocol/DynProtocol.h"
 //#include "Invn/DynamicProtocol/DynProtocolTransportUart.h"
 
 #include "system.h"
@@ -65,17 +65,29 @@ void icm20948_hal_init(void )
     rc += load_dmp3();
     check_rc(rc, "Error sensor_setup/DMP loading.");
 
+    DynProtocolEdata_t edata;
+    edata.d.command.period = 2000; //in µs
+
 //    ESP_LOGI(TAG, "Command START SENSOR INV_SENSOR_TYPE_ROTATION_VECTOR");
 //    handle_command(DYN_PROTOCOL_EID_START_SENSOR, INV_SENSOR_TYPE_ROTATION_VECTOR);
 //    ESP_LOGI(TAG, "Command START DONE");
     ESP_LOGI(TAG, "Command START SENSOR INV_SENSOR_TYPE_ROTATION_VECTOR");
-    handle_command(DYN_PROTOCOL_EID_START_SENSOR, INV_SENSOR_TYPE_ACCELEROMETER);
+    edata.sensor_id = INV_SENSOR_TYPE_ACCELEROMETER;
+    handle_command(DYN_PROTOCOL_EID_START_SENSOR, INV_SENSOR_TYPE_ACCELEROMETER, &edata);
+    ESP_LOGI(TAG, "Command DYN_PROTOCOL_EID_SET_SENSOR_PERIOD");
+    handle_command(DYN_PROTOCOL_EID_SET_SENSOR_PERIOD, INV_SENSOR_TYPE_ACCELEROMETER, &edata);
     ESP_LOGI(TAG, "Command START DONE");
     ESP_LOGI(TAG, "Command START SENSOR INV_SENSOR_TYPE_ROTATION_VECTOR");
-    handle_command(DYN_PROTOCOL_EID_START_SENSOR, INV_SENSOR_TYPE_GYROSCOPE);
+    edata.sensor_id = INV_SENSOR_TYPE_GYROSCOPE;
+    handle_command(DYN_PROTOCOL_EID_START_SENSOR, INV_SENSOR_TYPE_GYROSCOPE, &edata);
+    ESP_LOGI(TAG, "Command DYN_PROTOCOL_EID_SET_SENSOR_PERIOD");
+    handle_command(DYN_PROTOCOL_EID_SET_SENSOR_PERIOD, INV_SENSOR_TYPE_GYROSCOPE, &edata);
     ESP_LOGI(TAG, "Command START DONE");
     ESP_LOGI(TAG, "Command START SENSOR INV_SENSOR_TYPE_ROTATION_VECTOR");
-    handle_command(DYN_PROTOCOL_EID_START_SENSOR, INV_SENSOR_TYPE_MAGNETOMETER);
+    edata.sensor_id = INV_SENSOR_TYPE_MAGNETOMETER;
+    handle_command(DYN_PROTOCOL_EID_START_SENSOR, INV_SENSOR_TYPE_MAGNETOMETER, &edata);
+    ESP_LOGI(TAG, "Command DYN_PROTOCOL_EID_SET_SENSOR_PERIOD");
+    handle_command(DYN_PROTOCOL_EID_SET_SENSOR_PERIOD, INV_SENSOR_TYPE_MAGNETOMETER, &edata);
     ESP_LOGI(TAG, "Command START DONE");
     /*
      * Calibrated:
