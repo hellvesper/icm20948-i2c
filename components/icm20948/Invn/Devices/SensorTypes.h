@@ -190,6 +190,8 @@ enum inv_sensor_bacext_event {
  */
 typedef struct inv_sensor_event
 {
+	//unsigned int         syncBytes;        /**< 0x55AA55AA */
+	uint16_t			 syncBytes;        /**< 0x55AA55AA */
 	unsigned int         sensor;           /**< sensor type */
 	int                  status;           /**< sensor data status as of
 	                                            enum inv_sensor_status */
@@ -219,107 +221,107 @@ typedef struct inv_sensor_event
 			float        x,y,z;            /**< x,y,z angles in deg as defined by Google Orientation sensor */
 			uint8_t      accuracy_flag;    /**< heading accuracy in deg */
 		} orientation;                     /**< orientation data */
-		struct {
-			float        bpm;              /**< beat per minute */
-			uint8_t      confidence;       /**< confidence level */
-			uint8_t      sqi;              /**< signal quality as seen by the the HRM engine */
-		} hrm;                             /**< heart rate monitor data */                            /**< heart rate monitor data */
-		struct {
-			int32_t      acc[3];           /**< accel data used by hrm algorithm */
-			int32_t      gyr[3];           /**< gyro data used by hrm algorithm */
-			uint32_t     ppg_value;        /**< ppg value read from HRM sensor */
-			float        ppm;              /**< beat per minute */
-			uint8_t      confidence;       /**< confidence level */
-			uint8_t      sqi;              /**< signal quality as seen by the the HRM engine */
-			uint8_t      touch_status;     /**< touch status, detected or not by the PPG */
-			uint8_t      gyrEnable;        /**< 1 gyro is enable else 0 */
-		} hrmlogger;                       /**< heart rate monitor logger data */
-		struct {
-			uint8_t      rr_count;
-			uint8_t      paddingDummy;   /**< dummy byte for padding */
-			int16_t      rr_interval[4];   /**< beat-to-beat(RR) interval */
-		} hrv;                             /**< heart rate variability data */
-		struct {
-			uint32_t     ppg_value;        /**< ppg value read from HRM sensor */
-			uint8_t      touch_status;     /**< touch status, detected or not */
-		} rawppg;                          /**< raw heart rate monitor data */
-		struct {
-			uint8_t      sleep_phase;      /**< state of sleep phases: 0 not defined, 1 restless sleep, 2 light sleep, 3 deep sleep */
-			uint32_t     timestamp;        /**< time stamp of the sleep phase transition (seconds)*/
-			int32_t      sleep_onset;      /**< time until first period of 20 min sleep without more than 1 min wake */
-			int32_t      sleep_latency;    /**< time until first sleep phase */
-			uint32_t     time_in_bed;      /**< time in bed (seconds) */
-			uint32_t     total_sleep_time; /**< total sleep time (seconds) */
-			uint8_t      sleep_efficiency; /**< ratio between total sleep time and time in bed */
-		} sleepanalysis;                   /**< sleep analysis data */
-		struct {
-			int          event;            /**< BAC extended data begin/end event as of
-			                                    enum inv_sensor_bac_ext_event */
-		} bacext;                          /**< activity classifier (BAC) extended data */
-		struct {
-			uint32_t     durationWalk;          /**< ms */
-			uint32_t     durationRun;           /**< ms */
-			uint32_t     durationTransportSit;  /**< ms */
-			uint32_t     durationTransportStand;/**< ms */
-			uint32_t     durationBiking;        /**< ms */
-			uint32_t     durationStillSit;      /**< ms */
-			uint32_t     durationStillStand;    /**< ms */
-			uint32_t     durationTotalSit;      /**< Still-Sit + Transport-Sit + Biking (ms) */
-			uint32_t     durationTotalStand;    /**< Still-Stand + Transport-Stand (ms) */
-			uint32_t     stepWalk;              /**< walk step count */
-			uint32_t     stepRun;               /**< run step count */
-		} bacstat;                              /**< activity classifier (BAC) statistics data */
-		struct {
-			int32_t      floorsUp;         /**< number of floors climbed Up on foot by user. */
-			int32_t      floorsDown;       /**< number of floors climbed Down on foot by user. */
-		} floorclimb;                      /**< floor climbed data */
-		struct {
-			int32_t      instantEEkcal;    /**< energy expenditure in kilocalorie/min since last output. Format is q15: 2^15 = 1 kcal/min */
-			int32_t      instantEEmets;    /**< energy expenditure in METs(Metabolic Equivalent of Task) since last output. Format is q15: 2^15 = 1 METs */
-			int32_t      cumulativeEEkcal; /**< cumulative energy expenditure since the last reset in kilocalorie. Format is q0: 1 = 1 kcal */
-			int32_t      cumulativeEEmets; /**< cumulative energy expenditure since the last reset in METs (Metabolic Equivalent of Task). Format is q0: 1 = 1 METs */
-		} energyexp;                       /**< energy expenditure data */
-		struct {
-			int32_t      distanceWalk;     /**< distance in meters */
-			int32_t      distanceRun;      /**< distance in meters */
-		} distance;                        /**< distance data */
-		struct {
-			int32_t      table[7];         /**< data encrypted table */
-		} dataencryption;  
+		// struct {
+		// 	float        bpm;              /**< beat per minute */
+		// 	uint8_t      confidence;       /**< confidence level */
+		// 	uint8_t      sqi;              /**< signal quality as seen by the the HRM engine */
+		// } hrm;                             /**< heart rate monitor data */                            /**< heart rate monitor data */
+		// struct {
+		// 	int32_t      acc[3];           /**< accel data used by hrm algorithm */
+		// 	int32_t      gyr[3];           /**< gyro data used by hrm algorithm */
+		// 	uint32_t     ppg_value;        /**< ppg value read from HRM sensor */
+		// 	float        ppm;              /**< beat per minute */
+		// 	uint8_t      confidence;       /**< confidence level */
+		// 	uint8_t      sqi;              /**< signal quality as seen by the the HRM engine */
+		// 	uint8_t      touch_status;     /**< touch status, detected or not by the PPG */
+		// 	uint8_t      gyrEnable;        /**< 1 gyro is enable else 0 */
+		// } hrmlogger;                       /**< heart rate monitor logger data */
+		// struct {
+		// 	uint8_t      rr_count;
+		// 	uint8_t      paddingDummy;   /**< dummy byte for padding */
+		// 	int16_t      rr_interval[4];   /**< beat-to-beat(RR) interval */
+		// } hrv;                             /**< heart rate variability data */
+		// struct {
+		// 	uint32_t     ppg_value;        /**< ppg value read from HRM sensor */
+		// 	uint8_t      touch_status;     /**< touch status, detected or not */
+		// } rawppg;                          /**< raw heart rate monitor data */
+		// struct {
+		// 	uint8_t      sleep_phase;      /**< state of sleep phases: 0 not defined, 1 restless sleep, 2 light sleep, 3 deep sleep */
+		// 	uint32_t     timestamp;        /**< time stamp of the sleep phase transition (seconds)*/
+		// 	int32_t      sleep_onset;      /**< time until first period of 20 min sleep without more than 1 min wake */
+		// 	int32_t      sleep_latency;    /**< time until first sleep phase */
+		// 	uint32_t     time_in_bed;      /**< time in bed (seconds) */
+		// 	uint32_t     total_sleep_time; /**< total sleep time (seconds) */
+		// 	uint8_t      sleep_efficiency; /**< ratio between total sleep time and time in bed */
+		// } sleepanalysis;                   /**< sleep analysis data */
+		// struct {
+		// 	int          event;            /**< BAC extended data begin/end event as of
+		// 	                                    enum inv_sensor_bacext_event */
+		// } bacext;                          /**< activity classifier (BAC) extended data */
+		// struct {
+		// 	uint32_t     durationWalk;          /**< ms */
+		// 	uint32_t     durationRun;           /**< ms */
+		// 	uint32_t     durationTransportSit;  /**< ms */
+		// 	uint32_t     durationTransportStand;/**< ms */
+		// 	uint32_t     durationBiking;        /**< ms */
+		// 	uint32_t     durationStillSit;      /**< ms */
+		// 	uint32_t     durationStillStand;    /**< ms */
+		// 	uint32_t     durationTotalSit;      /**< Still-Sit + Transport-Sit + Biking (ms) */
+		// 	uint32_t     durationTotalStand;    /**< Still-Stand + Transport-Stand (ms) */
+		// 	uint32_t     stepWalk;              /**< walk step count */
+		// 	uint32_t     stepRun;               /**< run step count */
+		// } bacstat;                              /**< activity classifier (BAC) statistics data */
+		// struct {
+		// 	int32_t      floorsUp;         /**< number of floors climbed Up on foot by user. */
+		// 	int32_t      floorsDown;       /**< number of floors climbed Down on foot by user. */
+		// } floorclimb;                      /**< floor climbed data */
+		// struct {
+		// 	int32_t      instantEEkcal;    /**< energy expenditure in kilocalorie/min since last output. Format is q15: 2^15 = 1 kcal/min */
+		// 	int32_t      instantEEmets;    /**< energy expenditure in METs(Metabolic Equivalent of Task) since last output. Format is q15: 2^15 = 1 METs */
+		// 	int32_t      cumulativeEEkcal; /**< cumulative energy expenditure since the last reset in kilocalorie. Format is q0: 1 = 1 kcal */
+		// 	int32_t      cumulativeEEmets; /**< cumulative energy expenditure since the last reset in METs (Metabolic Equivalent of Task). Format is q0: 1 = 1 METs */
+		// } energyexp;                       /**< energy expenditure data */
+		// struct {
+		// 	int32_t      distanceWalk;     /**< distance in meters */
+		// 	int32_t      distanceRun;      /**< distance in meters */
+		// } distance;                        /**< distance data */
+		// struct {
+		// 	int32_t      table[7];         /**< data encrypted table */
+		// } dataencryption;
 		struct {
 			float        tmp;              /**< temperature in deg celcius */
 		} temperature;                     /**< temperature data */
-		struct {
-			float        percent;          /**< relative humidity in % */
-		} humidity;                        /**< humidity data */
-		struct {
-			uint64_t     count;            /**< number of steps */
-		} step;                            /**< step-counter data */
-		struct {
-			uint32_t     level;            /**< light level in lux */
-		} light;                           /**< light data */
-		struct {
-			uint32_t     distance;         /**< distance in mm */
-		} proximity;                       /**< proximity data */
-		struct {
-			uint32_t     pressure;         /**< pressure in Pa */
-		} pressure;                        /**< pressure data */
-		struct {
-			int          event;            /**< BAC data begin/end event as of 
-			                                    enum inv_sensor_bac_event */
-		} bac;                             /**< BAC data */
-		struct {
-			uint8_t      direction;        /**< 1: forward. 2: reverse. */
-		} b2s;
-		struct {
-			uint32_t     fxdata[12];       /**< PDR data in fixpoint*/
-		} pdr;                             /**< PDR data */
-		struct {
-			float        vect[3];          /**< x,y,z vector data */
-			float        bias[3];          /**< x,y,z bias vector data (for uncal sensor variant) */
-			int16_t      delta_ts;         /**< timestamp delta between standard gyro and EIS gyro */
-		} eis;                             /**< EIS data
-		                                        @warning experimental: structure is likely to change in near future */
+		// struct {
+		// 	float        percent;          /**< relative humidity in % */
+		// } humidity;                        /**< humidity data */
+		// struct {
+		// 	uint64_t     count;            /**< number of steps */
+		// } step;                            /**< step-counter data */
+		// struct {
+		// 	uint32_t     level;            /**< light level in lux */
+		// } light;                           /**< light data */
+		// struct {
+		// 	uint32_t     distance;         /**< distance in mm */
+		// } proximity;                       /**< proximity data */
+		// struct {
+		// 	uint32_t     pressure;         /**< pressure in Pa */
+		// } pressure;                        /**< pressure data */
+		// struct {
+		// 	int          event;            /**< BAC data begin/end event as of
+		// 	                                    enum inv_sensor_bac_event */
+		// } bac;                             /**< BAC data */
+		// struct {
+		// 	uint8_t      direction;        /**< 1: forward. 2: reverse. */
+		// } b2s;
+		// struct {
+		// 	uint32_t     fxdata[12];       /**< PDR (pedestrial dead reckoning) data in fixpoint*/
+		// } pdr;                             /**< PDR data */
+		// struct {
+		// 	float        vect[3];          /**< x,y,z vector data */
+		// 	float        bias[3];          /**< x,y,z bias vector data (for uncal sensor variant) */
+		// 	int16_t      delta_ts;         /**< timestamp delta between standard gyro and EIS gyro */
+		// } eis;                             /**< EIS ( Electronic Image Stabilization ) data
+		//                                         @warning experimental: structure is likely to change in near future */
 		struct {
 			int32_t      vect[3];          /**< x,y,z vector data */
 			uint32_t     fsr;              /**< full scale range */
@@ -331,41 +333,41 @@ typedef struct inv_sensor_event
 		struct {
 			uint8_t      status[6];        /**< raw temperature value */
 		} tsimu_status;                    /**< TSIMU status data*/
-		inv_bool_t       event;            /**< event state for gesture-like sensor
-		                                        (SMD, B2S, Step-detector, Tilt-detector, Wake, Glance, Pick-Up, Shake, Double-tap, ...) */
-		struct {
-			int16_t delay_count;           /**< delay counter in us between FSYNC tag and previous gyro data */
-		} fsync_event;                     /** < FSYNC tag (EIS sensor) */
-		struct {
-			unsigned     flags;             /** WOM status flags: non-zero value - motion detected
-                                                                  bit0 - motion detected around X axis
-                                                                  bit1 - motion detected around Y axis
-                                                                  bit2 - motion detected around Z axis
-                                            */
-		} wom;                              /** Wake-up on motion data */
-		struct {
-			uint8_t *    buffer;           /**< pointer to buffer */
-			uint32_t     size;             /**< current buffer size */
-		} audio_buffer;                    /**< buffer of audio data */
-		struct {
-			struct {
-				int        event;          /**< BAC data begin/end event as of  enum inv_sensor_bac_event */
-			} bac;                         /**< BAC data */
-			struct {
-				uint64_t   count;          /**< number of steps */
-			} step;                        /**< step-counter data */
-			int32_t      cumulativeEEkcal; /**< cumulative energy expenditure since the last reset in kilocalorie. Format is q0: 1 = 1 kcal */
-			int32_t      distance;         /**< sum of walk and run distance in meters */
-		} bscd;                            /**< buffer of custom BSCD */
-		struct {
-			int32_t      raw_pressure;         /**< raw pressure */
-			float        pressure;             /**< pressure in Pa */
-			int32_t      raw_temperature;      /**< raw temperature */
-			float        temperature;          /**< temperature in deg C */
-		} custom_pressure;                        /**< pressure data */
-		uint8_t          reserved[INV_SENSOR_EVENT_DATA_SIZE];     /**< reserved sensor data for future sensor */
+		// inv_bool_t       event;            /**< event state for gesture-like sensor
+		//                                         (SMD, B2S, Step-detector, Tilt-detector, Wake, Glance, Pick-Up, Shake, Double-tap, ...) */
+		// struct {
+		// 	int16_t delay_count;           /**< delay counter in us between FSYNC tag and previous gyro data */
+		// } fsync_event;                     /** < FSYNC tag (EIS sensor) */
+		// struct {
+		// 	unsigned     flags;             /** WOM status flags: non-zero value - motion detected
+  //                                                                 bit0 - motion detected around X axis
+  //                                                                 bit1 - motion detected around Y axis
+  //                                                                 bit2 - motion detected around Z axis
+  //                                           */
+		// } wom;                              /** Wake-up on motion data */
+		// struct {
+		// 	uint8_t *    buffer;           /**< pointer to buffer */
+		// 	uint32_t     size;             /**< current buffer size */
+		// } audio_buffer;                    /**< buffer of audio data */
+		// struct {
+		// 	struct {
+		// 		int        event;          /**< BAC data begin/end event as of  enum inv_sensor_bac_event */
+		// 	} bac;                         /**< BAC data */
+		// 	struct {
+		// 		uint64_t   count;          /**< number of steps */
+		// 	} step;                        /**< step-counter data */
+		// 	int32_t      cumulativeEEkcal; /**< cumulative energy expenditure since the last reset in kilocalorie. Format is q0: 1 = 1 kcal */
+		// 	int32_t      distance;         /**< sum of walk and run distance in meters */
+		// } bscd;                            /**< buffer of custom BSCD */
+		// struct {
+		// 	int32_t      raw_pressure;         /**< raw pressure */
+		// 	float        pressure;             /**< pressure in Pa */
+		// 	int32_t      raw_temperature;      /**< raw temperature */
+		// 	float        temperature;          /**< temperature in deg C */
+		// } custom_pressure;                        /**< pressure data */
+		// uint8_t          reserved[INV_SENSOR_EVENT_DATA_SIZE];     /**< reserved sensor data for future sensor */
 	} data;                                /**< sensor data */
-} inv_sensor_event_t;
+} __attribute__ ((packed)) inv_sensor_event_t;
 
 /** @brief Sensor listener event callback definition
  *  @param[in] event     reference to sensor event

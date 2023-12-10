@@ -7,6 +7,7 @@
 #include <freertos/task.h>
 #include "freertos/queue.h"
 #include <stdio.h>
+#include <string.h>
 
 #include "icm20948_driver.h"
 #include "icm20948_hal.h"
@@ -293,11 +294,12 @@ static void icm_task(void *arg) {
     /* Configure parameters of an UART driver,
      * communication pins and install the driver */
     uart_config_t uart_config = {
-            .baud_rate = 115200,
+            .baud_rate = 921600, // / 8, // 115200
             .data_bits = UART_DATA_8_BITS,
             .parity    = UART_PARITY_DISABLE,
             .stop_bits = UART_STOP_BITS_1,
             .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+            // .flow_ctrl = UART_HW_FLOWCTRL_CTS_RTS,
             .source_clk = UART_SCLK_APB,
     };
     int intr_alloc_flags = 0;
@@ -314,8 +316,29 @@ static void icm_task(void *arg) {
     icm20948_hal_init();
     ESP_LOGI(TAG, "Init Done");
     ESP_LOGI(TAG, "Start Polling");
+    // static uint8_t ubyte[]= {0x14, 0x88};
+    // static uint32_t count = 0;
     while (1) {
         icm20948_hal_poll();
+
+        // int res = uart_write_bytes(UART_NUM_0, &ubyte, 2);
+        // Write data to UART.
+        // char* test_str = "AAAA\r\n";
+        // char* test_str2 = "BBBB\n";
+        // if (count % 2 == 0) {
+        //     int res = uart_write_bytes(UART_NUM_0, (const char*)test_str, strlen(test_str));
+        //
+        // } else {
+        //
+        //     printf(test_str2);
+        // }
+        // count++;
+
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+    while (1) {
+        icm20948_hal_poll();
+        uart_write_bytes(UART_NUM_0, "hello", sizeof("hello"));
 #define DEBUG_PRINT 1
 #ifdef DEBUG_PRINT
         static uint32_t print_time = 0;

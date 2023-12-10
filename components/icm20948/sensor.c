@@ -45,6 +45,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <stdio.h>
+#include <driver/uart.h>
 
 static const char *TAG = "sensor.c";
 #define DEBUG_PRINT 1
@@ -270,14 +271,16 @@ void build_sensor_event_data(void * context, enum inv_icm20948_sensor sensortype
 	memset((void *)&event, 0, sizeof(event));
 	event.sensor = sensor_id;
 	event.timestamp = timestamp;
+	// event.syncBytes = 0x55AA55AA;
+	event.syncBytes = 0x1488;
 //    printf("Sensor ID: %u", sensor_id);
 //#define DEBUG_S 1
 #ifdef DEBUG_PRINT
-    static uint32_t print_time = 0;
-    if (print_time % 100 == 0) {
-        ESP_LOGI(TAG, "Sensor ID: %u", sensor_id);
-    }
-    print_time++;
+    // static uint32_t print_time = 0;
+    // if (print_time % 100 == 0) {
+    //     ESP_LOGI(TAG, "Sensor ID: %u", sensor_id);
+    // }
+    // print_time++;
 #endif
 	switch(sensor_id) {
 	case INV_SENSOR_TYPE_UNCAL_GYROSCOPE:
@@ -318,22 +321,22 @@ void build_sensor_event_data(void * context, enum inv_icm20948_sensor sensortype
 		memcpy(event.data.quaternion.quat, data, sizeof(event.data.quaternion.quat));
 		event.data.quaternion.accuracy_flag = icm20948_get_grv_accuracy();
 		break;
-	case INV_SENSOR_TYPE_BAC:
-		memcpy(&(event.data.bac.event), data, sizeof(event.data.bac.event));
-		break;
-	case INV_SENSOR_TYPE_PICK_UP_GESTURE:
-	case INV_SENSOR_TYPE_TILT_DETECTOR:
-	case INV_SENSOR_TYPE_STEP_DETECTOR:
-	case INV_SENSOR_TYPE_SMD:
-		event.data.event = true;
-		break;
-	case INV_SENSOR_TYPE_B2S:
-		event.data.event = true;
-		memcpy(&(event.data.b2s.direction), data, sizeof(event.data.b2s.direction));
-		break;
-	case INV_SENSOR_TYPE_STEP_COUNTER:
-		memcpy(&(event.data.step.count), data, sizeof(event.data.step.count));
-		break;
+	// case INV_SENSOR_TYPE_BAC:
+	// 	memcpy(&(event.data.bac.event), data, sizeof(event.data.bac.event));
+	// // 	break;
+	// case INV_SENSOR_TYPE_PICK_UP_GESTURE:
+	// case INV_SENSOR_TYPE_TILT_DETECTOR:
+	// case INV_SENSOR_TYPE_STEP_DETECTOR:
+	// case INV_SENSOR_TYPE_SMD:
+	// 	event.data.event = true;
+	// 	break;
+	// case INV_SENSOR_TYPE_B2S:
+	// 	event.data.event = true;
+	// 	memcpy(&(event.data.b2s.direction), data, sizeof(event.data.b2s.direction));
+	// 	break;
+	// case INV_SENSOR_TYPE_STEP_COUNTER:
+	// 	memcpy(&(event.data.step.count), data, sizeof(event.data.step.count));
+	// 	break;
 	case INV_SENSOR_TYPE_ORIENTATION:
 		//we just want to copy x,y,z from orientation data
 		memcpy(&(event.data.orientation), data, 3*sizeof(float));
@@ -387,14 +390,27 @@ void sensor_event(const inv_sensor_event_t * event, void * arg){
 	int64_t cur_time = esp_timer_get_time();
 	if (cur_time - event_timer >= 1000000) {
 		event_timer = cur_time;
-		ESP_LOGI(TAG, "Rotation ODR: %u", sensorData.rotation_count);
-		ESP_LOGI(TAG, "Accel ODR: %u", sensorData.accel_count);
-		ESP_LOGI(TAG, "Gyro ODR: %u", sensorData.gyro_count);
-		ESP_LOGI(TAG, "Mag ODR: %u", sensorData.mag_count);
-		sensorData.rotation_count = 0;
-		sensorData.accel_count = 0;
-		sensorData.gyro_count = 0;
-		sensorData.mag_count = 0;
+		// ESP_LOGI(TAG, "Rotation ODR: %u", sensorData.rotation_count);
+		// ESP_LOGI(TAG, "Accel ODR: %u", sensorData.accel_count);
+		// ESP_LOGI(TAG, "Gyro ODR: %u", sensorData.gyro_count);
+		// ESP_LOGI(TAG, "Mag ODR: %u", sensorData.mag_count);
+		// sensorData.rotation_count = 0;
+		// sensorData.accel_count = 0;
+		// sensorData.gyro_count = 0;
+		// sensorData.mag_count = 0;
+
+		// printf(event);
+		if (uart_is_driver_installed(UART_NUM_0)) {
+			int bytes_transmitted = uart_write_bytes(UART_NUM_0, event, sizeof(*event));
+			// int bytes_transmitted = uart_write_bytes(UART_NUM_0, "hello\r\n\0", sizeof("hello\r\n\0"));
+			ESP_ERROR_CHECK(uart_wait_tx_done(UART_NUM_0, 100));
+			printf("\n");
+			ESP_LOGI(TAG, "sizeof(event): %d | sizeof(&event): %d | sizeof(*event): %d", sizeof(event), sizeof(&event), sizeof(*event));
+			ESP_LOGW(TAG, "%d bytes transmitted over uart", bytes_transmitted);
+
+		} else {
+			ESP_LOGE(TAG, "UART0 driver not installed");
+		}
 	}
 //    printf("Accuracy: %f deg | Quaterion W: %f | X: %f | Y: %f | Z: %f | Flag: %u\n",
 //    printf("DATA_Q A:%f W:%f X:%f Y:%f Z:%f F:%u\n",
@@ -455,7 +471,7 @@ void sensor_event(const inv_sensor_event_t * event, void * arg){
             break;
 
         default:
-            printf("%s:%d | Sensor ID: %s\n", __PRETTY_FUNCTION__, __LINE__, inv_sensor_2str(event->sensor));
+            printf("%s:%d | Unknown Sensor ID: %s\n", __PRETTY_FUNCTION__, __LINE__, inv_sensor_2str(event->sensor));
     }
 
 #endif
