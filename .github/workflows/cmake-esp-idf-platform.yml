@@ -27,6 +27,6 @@ jobs:
       with:
         esp_idf_version: v4.4
         target: esp32s3
-        path: 'icm20948-i2c'
+        path: './'
               
 
