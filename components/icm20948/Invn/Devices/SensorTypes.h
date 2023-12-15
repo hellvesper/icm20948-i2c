@@ -178,6 +178,40 @@ enum inv_sensor_bacext_event {
 	INV_SENSOR_BACEXT_EVENT_ACT_STILL_STAND_END         = -7
 };
 
+/** @brief Sensor data definition
+ */
+typedef struct inv_sensor_data {
+	//unsigned int         syncBytes;        /**< 0x55AA55AA */
+	uint16_t			 syncBytes;        /**< 0x55AA55AA */
+	unsigned int         sensor;           /**< sensor type */
+	int                  status;           /**< sensor data status as of
+												enum inv_sensor_status */
+	uint64_t             timestamp;        /**< sensor data timestamp in us */
+	union {
+		struct {
+			float        vect[3];          /**< x,y,z vector data */
+			float        bias[3];          /**< x,y,z bias vector data */
+			uint8_t      accuracy_flag;    /**< accuracy flag */
+		} acc;                             /**< 3d accelerometer data in g */
+		struct {
+			float        vect[3];          /**< x,y,z vector data */
+			float        bias[3];          /**< x,y,z bias vector data (for uncal sensor variant) */
+			uint8_t      accuracy_flag;    /**< accuracy flag */
+		} mag;                             /**< 3d magnetometer data in uT */
+		struct {
+			float        vect[3];          /**< x,y,z vector data */
+			float        bias[3];          /**< x,y,z bias vector data (for uncal sensor variant) */
+			uint8_t      accuracy_flag;    /**< accuracy flag */
+		} gyr;                             /**< 3d gyroscope data in deg/s */
+		struct {
+			float        quat[4];          /**< w,x,y,z quaternion data */
+			float        accuracy;         /**< heading accuracy in deg */
+			uint8_t      accuracy_flag;    /**< accuracy flag specific for GRV*/
+		} quaternion;                      /**< quaternion data */
+	} data;
+} inv_sensor_data_t;
+// } __attribute__ ((packed)) inv_sensor_data_t;
+
 /** @brief Maximum size of an event data
  */
 #define INV_SENSOR_EVENT_DATA_SIZE      64
@@ -367,7 +401,8 @@ typedef struct inv_sensor_event
 		// } custom_pressure;                        /**< pressure data */
 		// uint8_t          reserved[INV_SENSOR_EVENT_DATA_SIZE];     /**< reserved sensor data for future sensor */
 	} data;                                /**< sensor data */
-} __attribute__ ((packed)) inv_sensor_event_t;
+} inv_sensor_event_t;
+// } __attribute__ ((packed)) inv_sensor_event_t;
 
 /** @brief Sensor listener event callback definition
  *  @param[in] event     reference to sensor event

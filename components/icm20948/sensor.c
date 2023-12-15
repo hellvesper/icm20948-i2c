@@ -364,19 +364,27 @@ void sensor_event(const inv_sensor_event_t * event, void * arg){
 	(void)arg;
 
 	/*
-	* Encode sensor event and sent to host over UART through IddWrapper protocol
+	* Encode sensor event and sent to host over UART
 	*/
-    /*
-     * event.data.quaternion.accuracy), arg, sizeof(event.data.quaternion.accuracy));
-     * event.data.quaternion.quat, data, sizeof(event.data.quaternion.quat));
-     */
+	static bool inited = false;
+	inv_sensor_data_t sensor_data;
+	static inv_sensor_data_t old_data;
+	if (inited == false) {
+		memset(&sensor_data, 0, sizeof(inv_sensor_data_t));
+		memset(&old_data, 0, sizeof(inv_sensor_data_t));
+		inited = true;
+	}
+	sensor_data.syncBytes = event->syncBytes;
+	sensor_data.status = event->status;
+	sensor_data.sensor = event->sensor;
+	sensor_data.timestamp = event->timestamp;
+
     static uint32_t event_count = 0;
 	static SensorData sensorData = { 0, 0, 0, 0 };
 	static int64_t event_timer = 0;
 
     event_count++;
-//	static uint8_t async_buffer[256]; /* static to take on .bss */
-//	uint16_t async_bufferLen;
+
 
     /*
      * float        quat[4];          < w,x,y,z quaternion data
@@ -400,17 +408,7 @@ void sensor_event(const inv_sensor_event_t * event, void * arg){
 		// sensorData.mag_count = 0;
 
 		// printf(event);
-		if (uart_is_driver_installed(UART_NUM_0)) {
-			int bytes_transmitted = uart_write_bytes(UART_NUM_0, event, sizeof(*event));
-			// int bytes_transmitted = uart_write_bytes(UART_NUM_0, "hello\r\n\0", sizeof("hello\r\n\0"));
-			ESP_ERROR_CHECK(uart_wait_tx_done(UART_NUM_0, 100));
-			printf("\n");
-			ESP_LOGI(TAG, "sizeof(event): %d | sizeof(&event): %d | sizeof(*event): %d", sizeof(event), sizeof(&event), sizeof(*event));
-			ESP_LOGW(TAG, "%d bytes transmitted over uart", bytes_transmitted);
 
-		} else {
-			ESP_LOGE(TAG, "UART0 driver not installed");
-		}
 	}
 //    printf("Accuracy: %f deg | Quaterion W: %f | X: %f | Y: %f | Z: %f | Flag: %u\n",
 //    printf("DATA_Q A:%f W:%f X:%f Y:%f Z:%f F:%u\n",
@@ -431,6 +429,7 @@ void sensor_event(const inv_sensor_event_t * event, void * arg){
             //        event->data.quaternion.quat[1],
             //        event->data.quaternion.quat[2],
             //        event->data.quaternion.quat[3]);
+    		memcpy(&sensor_data.data.quaternion, &event->data.quaternion, sizeof(event->data.quaternion));
             break;
 
         case INV_SENSOR_TYPE_ACCELEROMETER:
@@ -444,6 +443,7 @@ void sensor_event(const inv_sensor_event_t * event, void * arg){
             //        event->data.acc.bias[1],
             //        event->data.acc.bias[2],
             //        event->data.acc.accuracy_flag);
+	    	memcpy(&sensor_data.data.acc, &event->data.acc, sizeof(event->data.acc));
             break;
         case INV_SENSOR_TYPE_GYROSCOPE:
         	sensorData.gyro_count++;
@@ -456,6 +456,7 @@ void sensor_event(const inv_sensor_event_t * event, void * arg){
             //        event->data.gyr.bias[1],
             //        event->data.gyr.bias[2],
             //        event->data.gyr.accuracy_flag);
+    		memcpy(&sensor_data.data.gyr, &event->data.gyr, sizeof(event->data.gyr));
             break;
         case INV_SENSOR_TYPE_MAGNETOMETER:
         	sensorData.mag_count++;
@@ -468,6 +469,7 @@ void sensor_event(const inv_sensor_event_t * event, void * arg){
             //        event->data.mag.bias[1],
             //        event->data.mag.bias[2],
             //        event->data.mag.accuracy_flag);
+    		memcpy(&sensor_data.data.mag, &event->data.mag, sizeof(event->data.mag));
             break;
 
         default:
@@ -475,6 +477,26 @@ void sensor_event(const inv_sensor_event_t * event, void * arg){
     }
 
 #endif
+	if (uart_is_driver_installed(UART_NUM_0)) {
+		static uint32_t dup = 0;
+		static uint32_t nodup = 0;
+
+		// int bytes_transmitted = uart_write_bytes(UART_NUM_0, &sensor_data, sizeof(sensor_data));
+		// ESP_ERROR_CHECK(uart_wait_tx_done(UART_NUM_0, 100));
+		// printf("\n");
+		// ESP_LOGI(TAG, "sizeof(event): %d | sizeof(&event): %d | sizeof(*event): %d", sizeof(event), sizeof(&event), sizeof(*event));
+		// ESP_LOGW(TAG, "%d bytes transmitted over uart", bytes_transmitted);
+		if (memcmp(&old_data, &sensor_data, sizeof(sensor_data))==0) {
+			dup++;
+		} else {
+			nodup++;
+		}
+		ESP_LOGW(TAG, "[%d] Dup %d NoDup %d | TS1 %llu TS2 %llu eq %d",event_count , dup, nodup, sensor_data.timestamp,
+			old_data.timestamp, (sensor_data.timestamp == old_data.timestamp));
+		old_data = sensor_data;
+	} else {
+		ESP_LOGE(TAG, "UART0 driver not installed");
+	}
 }
 
 
