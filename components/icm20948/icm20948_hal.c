@@ -3,7 +3,7 @@
 //
 
 /* InvenSense drivers and utils */
-#include "Invn/Devices/Drivers/Icm20948/Icm20948.h"
+#include "Invn/Devices/Drivers/ICM20948/Icm20948.h"
 #include "Invn/Devices/Drivers/Ak0991x/Ak0991x.h"
 #include "Invn/Devices/SensorTypes.h"
 #include "Invn/Devices/SensorConfig.h"
