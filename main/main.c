@@ -320,10 +320,10 @@ static void icm_task(void *arg) {
 #ifdef DEBUG_PRINT
         static uint32_t print_time = 0;
         if (print_time % 1000 == 0) {
-//            icm20948_hal_print();
+            // icm20948_hal_print();
             ESP_LOGI(TAG, "Poll cont: %u", print_time);
             char buffer[1024];
-            vTaskGetRunTimeStats(buffer);
+            // vTaskGetRunTimeStats(buffer); // <-- enable stats in menuconfig before use
             printf("\n\n%s\n", buffer);
         }
         print_time++;
