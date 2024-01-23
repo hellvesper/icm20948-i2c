@@ -478,22 +478,24 @@ void sensor_event(const inv_sensor_event_t * event, void * arg){
 
 #endif
 	if (uart_is_driver_installed(UART_NUM_0)) {
-		static uint32_t dup = 0;
-		static uint32_t nodup = 0;
 
-		// int bytes_transmitted = uart_write_bytes(UART_NUM_0, &sensor_data, sizeof(sensor_data));
-		// ESP_ERROR_CHECK(uart_wait_tx_done(UART_NUM_0, 100));
-		// printf("\n");
+		int bytes_transmitted = uart_write_bytes(UART_NUM_0, &sensor_data, sizeof(sensor_data));
+		ESP_ERROR_CHECK(uart_wait_tx_done(UART_NUM_0, 100));
+		printf("\n%llu -> %u = %d\n", sensor_data.timestamp, sensor_data.sensor, bytes_transmitted);
 		// ESP_LOGI(TAG, "sizeof(event): %d | sizeof(&event): %d | sizeof(*event): %d", sizeof(event), sizeof(&event), sizeof(*event));
 		// ESP_LOGW(TAG, "%d bytes transmitted over uart", bytes_transmitted);
-		if (memcmp(&old_data, &sensor_data, sizeof(sensor_data))==0) {
-			dup++;
-		} else {
-			nodup++;
-		}
-		ESP_LOGW(TAG, "[%d] Dup %d NoDup %d | TS1 %llu TS2 %llu eq %d",event_count , dup, nodup, sensor_data.timestamp,
-			old_data.timestamp, (sensor_data.timestamp == old_data.timestamp));
-		old_data = sensor_data;
+
+		/* Debug DUP */
+		// static uint32_t dup = 0;
+		// static uint32_t nodup = 0;
+		// if (memcmp(&old_data, &sensor_data, sizeof(sensor_data))==0) {
+		// 	dup++;
+		// } else {
+		// 	nodup++;
+		// }
+		// ESP_LOGW(TAG, "[%d] Dup %d NoDup %d | TS1 %llu TS2 %llu eq %d",event_count , dup, nodup, sensor_data.timestamp,
+		// 	old_data.timestamp, (sensor_data.timestamp == old_data.timestamp));
+		// old_data = sensor_data;
 	} else {
 		ESP_LOGE(TAG, "UART0 driver not installed");
 	}
