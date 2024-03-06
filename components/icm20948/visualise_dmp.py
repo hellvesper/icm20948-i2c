@@ -52,7 +52,7 @@ def parse_quaternion_data(data):
 if __name__ == '__main__':
     print(o3d.__version__)
 
-    ser = serial.Serial('/dev/cu.usbmodem14201', 921600, timeout=1)  # Update COM port and baud rate as needed
+    ser = serial.Serial('/dev/cu.wchusbserial54CE0362981', 115200, timeout=1)  # Update COM port and baud rate as needed
 
     # Load mesh, together with setting the flag for post-processing to True, so the texture and material will be loaded
     mesh_path = 'paper_plane.stl'
